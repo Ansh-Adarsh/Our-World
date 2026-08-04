@@ -11,8 +11,8 @@ type AuthMode = 'sign-in' | 'sign-up';
 
 /**
  * Auth page — sign in / sign up.
- * Soft glass card with interactive tab switcher, floating label inputs,
- * and smooth non-overlapping layout transitions.
+ * Beautiful glass card with flexbox gap spacing, tab bar inside card,
+ * and zero layout shifts or overlapping text/inputs.
  */
 export function Auth() {
   const navigate = useNavigate();
@@ -66,7 +66,7 @@ export function Auth() {
   };
 
   return (
-    <div className="relative min-h-dvh flex flex-col items-center justify-center overflow-hidden bg-our-world px-4 py-8">
+    <div className="relative min-h-dvh flex flex-col items-center justify-center overflow-hidden bg-our-world px-4 py-12">
 
       {/* Ambient background glow */}
       <div className="pointer-events-none absolute inset-0">
@@ -105,27 +105,27 @@ export function Auth() {
         <span>Back</span>
       </motion.button>
 
-      {/* Auth card */}
+      {/* Auth Card Container */}
       <motion.div
         initial={{ opacity: 0, y: 28, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
         className="relative z-10 w-full max-w-md my-auto"
       >
-        <div className="glass-card p-6 sm:p-8 shadow-2xl">
+        <div className="glass-card p-6 sm:p-8 flex flex-col shadow-2xl">
 
-          {/* Mode Tab Switcher */}
-          <div className="flex items-center bg-black/20 p-1 rounded-xl mb-6 border border-white/5">
+          {/* Mode Tab Switcher inside card */}
+          <div className="relative w-full flex items-center bg-black/40 p-1.5 rounded-xl mb-6 border border-white/10">
             <button
               type="button"
               onClick={() => switchMode('sign-in')}
-              className={`relative flex-1 py-2.5 text-xs sm:text-sm font-medium font-sans rounded-lg transition-colors cursor-pointer select-none ${
+              className={`relative flex-1 py-2.5 text-xs sm:text-sm font-semibold font-sans rounded-lg transition-colors cursor-pointer select-none text-center ${
                 mode === 'sign-in' ? 'text-[#FFFCF9]' : 'text-[#9C8490] hover:text-[#E98DA3]'
               }`}
             >
               {mode === 'sign-in' && (
                 <motion.div
-                  layoutId="auth-tab-pill"
+                  layoutId="auth-tab-bg"
                   className="absolute inset-0 bg-[#B83B5E] rounded-lg shadow-md shadow-[#B83B5E]/30"
                   transition={{ type: 'spring', stiffness: 400, damping: 35 }}
                 />
@@ -136,13 +136,13 @@ export function Auth() {
             <button
               type="button"
               onClick={() => switchMode('sign-up')}
-              className={`relative flex-1 py-2.5 text-xs sm:text-sm font-medium font-sans rounded-lg transition-colors cursor-pointer select-none ${
+              className={`relative flex-1 py-2.5 text-xs sm:text-sm font-semibold font-sans rounded-lg transition-colors cursor-pointer select-none text-center ${
                 mode === 'sign-up' ? 'text-[#FFFCF9]' : 'text-[#9C8490] hover:text-[#E98DA3]'
               }`}
             >
               {mode === 'sign-up' && (
                 <motion.div
-                  layoutId="auth-tab-pill"
+                  layoutId="auth-tab-bg"
                   className="absolute inset-0 bg-[#B83B5E] rounded-lg shadow-md shadow-[#B83B5E]/30"
                   transition={{ type: 'spring', stiffness: 400, damping: 35 }}
                 />
@@ -154,7 +154,7 @@ export function Auth() {
           {/* Header */}
           <div className="text-center mb-6">
             <h1
-              className="text-3xl font-light text-[#FFFCF9] mb-1 tracking-wide"
+              className="text-3xl font-light text-[#FFFCF9] mb-1.5 tracking-wide"
               style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
             >
               {mode === 'sign-in' ? 'Welcome Back' : 'Begin Your Story'}
@@ -166,31 +166,28 @@ export function Auth() {
             </p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          {/* Form with Flexbox Gap (prevents overlap) */}
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
 
             {/* Display name — sign up only */}
-            <AnimatePresence mode="wait">
-              {mode === 'sign-up' && (
-                <motion.div
-                  key="display-name-field"
-                  initial={{ opacity: 0, y: -10, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: 'auto' }}
-                  exit={{ opacity: 0, y: -10, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
-                >
-                  <Input
-                    id="display-name"
-                    label="Your Name"
-                    type="text"
-                    value={displayName}
-                    onChange={e => setDisplayName(e.target.value)}
-                    autoComplete="name"
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {mode === 'sign-up' && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="w-full"
+              >
+                <Input
+                  id="display-name"
+                  label="Your Name"
+                  type="text"
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  autoComplete="name"
+                />
+              </motion.div>
+            )}
 
             <Input
               id="email"
@@ -214,7 +211,7 @@ export function Auth() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
-                  className="text-[#9C8490] hover:text-[#E98DA3] transition-colors cursor-pointer p-1 rounded-md"
+                  className="text-[#9C8490] hover:text-[#E98DA3] transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-white/5 flex items-center justify-center"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -230,7 +227,7 @@ export function Auth() {
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs sm:text-sm text-red-300 font-sans text-center"
+                  className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs sm:text-sm text-red-300 font-sans text-center"
                   role="alert"
                 >
                   {error}
@@ -242,7 +239,7 @@ export function Auth() {
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="p-3 rounded-lg bg-[#E98DA3]/10 border border-[#E98DA3]/20 text-xs sm:text-sm text-[#E98DA3] font-sans text-center"
+                  className="p-3.5 rounded-xl bg-[#E98DA3]/10 border border-[#E98DA3]/20 text-xs sm:text-sm text-[#E98DA3] font-sans text-center"
                   role="status"
                 >
                   {success}
@@ -256,7 +253,7 @@ export function Auth() {
               variant="primary"
               size="lg"
               isLoading={submitting}
-              className="w-full mt-3 tracking-widest uppercase text-sm font-semibold shadow-lg shadow-[#B83B5E]/30"
+              className="w-full mt-2 tracking-widest uppercase text-sm font-semibold shadow-lg shadow-[#B83B5E]/30 min-h-[48px]"
             >
               {mode === 'sign-in' ? 'Enter Our World' : 'Create Account'}
             </Button>
@@ -274,6 +271,7 @@ export function Auth() {
                 : 'Already registered? Switch to Sign In'}
             </button>
           </div>
+
         </div>
       </motion.div>
     </div>
