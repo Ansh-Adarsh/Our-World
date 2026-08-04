@@ -1,0 +1,61 @@
+import { forwardRef, useState } from 'react';
+
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label: string;
+  error?: string;
+  id: string;
+}
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(
+  ({ label, error, id, className = '', ...props }, ref) => {
+    const [focused, setFocused] = useState(false);
+    const hasValue = !!props.value || !!props.defaultValue;
+
+    return (
+      <div className="relative w-full">
+        <input
+          ref={ref}
+          id={id}
+          className={[
+            'peer w-full px-4 pt-6 pb-2',
+            'bg-white/5 border rounded-xl',
+            'text-[#FFFCF9] text-base font-sans',
+            'placeholder-transparent',
+            'outline-none',
+            'transition-all duration-200',
+            error
+              ? 'border-red-400/60 focus:border-red-400'
+              : 'border-[#E98DA3]/20 focus:border-[#B83B5E]/60',
+            'focus:bg-white/8',
+            className,
+          ].join(' ')}
+          placeholder={label}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          {...props}
+        />
+
+        {/* Floating Label */}
+        <label
+          htmlFor={id}
+          className={[
+            'absolute left-4 font-sans pointer-events-none',
+            'transition-all duration-200 ease-out',
+            focused || hasValue || props.value
+              ? 'top-2 text-xs text-[#E98DA3]/70'
+              : 'top-4 text-base text-[#9C8490]',
+          ].join(' ')}
+        >
+          {label}
+        </label>
+
+        {/* Error message */}
+        {error && (
+          <p className="mt-1 text-xs text-red-400 font-sans">{error}</p>
+        )}
+      </div>
+    );
+  }
+);
+
+Input.displayName = 'Input';
