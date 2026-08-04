@@ -4,10 +4,11 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   error?: string;
   id: string;
+  rightElement?: React.ReactNode;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, id, className = '', ...props }, ref) => {
+  ({ label, error, id, rightElement, className = '', ...props }, ref) => {
     const [focused, setFocused] = useState(false);
     const hasValue = !!props.value || !!props.defaultValue;
 
@@ -17,7 +18,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={id}
           className={[
-            'peer w-full px-4 pt-6 pb-2',
+            'peer w-full pl-4 pt-6 pb-2',
+            rightElement ? 'pr-12' : 'pr-4',
             'bg-white/5 border rounded-xl',
             'text-[#FFFCF9] text-base font-sans',
             'placeholder-transparent',
@@ -48,6 +50,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         >
           {label}
         </label>
+
+        {/* Right Element (e.g. Eye icon toggle) */}
+        {rightElement && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+            {rightElement}
+          </div>
+        )}
 
         {/* Error message */}
         {error && (

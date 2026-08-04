@@ -10,9 +10,9 @@ import { useAuthStore } from '@/stores/authStore';
 type AuthMode = 'sign-in' | 'sign-up';
 
 /**
- * Auth page — sign in / sign up toggle.
- * Soft card on the cinematic background from Landing.
- * No hardcoded credentials, no secrets, no debug logs.
+ * Auth page — sign in / sign up.
+ * Soft glass card with interactive tab switcher, floating label inputs,
+ * and smooth non-overlapping layout transitions.
  */
 export function Auth() {
   const navigate = useNavigate();
@@ -58,19 +58,20 @@ export function Auth() {
     }
   };
 
-  const toggleMode = () => {
-    setMode(m => (m === 'sign-in' ? 'sign-up' : 'sign-in'));
+  const switchMode = (newMode: AuthMode) => {
+    if (mode === newMode) return;
+    setMode(newMode);
     setError(null);
     setSuccess(null);
   };
 
   return (
-    <div className="relative min-h-dvh flex flex-col items-center justify-center overflow-hidden bg-our-world px-4">
+    <div className="relative min-h-dvh flex flex-col items-center justify-center overflow-hidden bg-our-world px-4 py-8">
 
-      {/* Ambient background */}
+      {/* Ambient background glow */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-1/4 right-1/4 w-80 h-80 rounded-full bg-[#B83B5E]/6 blur-3xl" />
-        <div className="absolute bottom-1/4 left-1/4 w-64 h-64 rounded-full bg-[#5A2435]/20 blur-3xl" />
+        <div className="absolute top-1/4 right-1/4 w-80 h-80 rounded-full bg-[#B83B5E]/8 blur-3xl" />
+        <div className="absolute bottom-1/4 left-1/4 w-64 h-64 rounded-full bg-[#5A2435]/25 blur-3xl" />
       </div>
 
       {/* Flower accents */}
@@ -95,9 +96,9 @@ export function Auth() {
       <motion.button
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: 0.2 }}
         onClick={() => navigate('/')}
-        className="absolute top-6 left-6 text-[#9C8490] hover:text-[#E98DA3] transition-colors flex items-center gap-1 text-sm font-sans cursor-pointer"
+        className="absolute top-6 left-6 text-[#9C8490] hover:text-[#E98DA3] transition-colors flex items-center gap-1.5 text-sm font-sans cursor-pointer py-2 px-3 rounded-lg hover:bg-white/5"
         aria-label="Back to home"
       >
         <ArrowLeft size={16} />
@@ -106,25 +107,62 @@ export function Auth() {
 
       {/* Auth card */}
       <motion.div
-        initial={{ opacity: 0, y: 32, scale: 0.97 }}
+        initial={{ opacity: 0, y: 28, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className="relative z-10 w-full max-w-sm"
+        transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+        className="relative z-10 w-full max-w-md my-auto"
       >
-        <div className="glass-card p-8">
+        <div className="glass-card p-6 sm:p-8 shadow-2xl">
+
+          {/* Mode Tab Switcher */}
+          <div className="flex items-center bg-black/20 p-1 rounded-xl mb-6 border border-white/5">
+            <button
+              type="button"
+              onClick={() => switchMode('sign-in')}
+              className={`relative flex-1 py-2.5 text-xs sm:text-sm font-medium font-sans rounded-lg transition-colors cursor-pointer select-none ${
+                mode === 'sign-in' ? 'text-[#FFFCF9]' : 'text-[#9C8490] hover:text-[#E98DA3]'
+              }`}
+            >
+              {mode === 'sign-in' && (
+                <motion.div
+                  layoutId="auth-tab-pill"
+                  className="absolute inset-0 bg-[#B83B5E] rounded-lg shadow-md shadow-[#B83B5E]/30"
+                  transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                />
+              )}
+              <span className="relative z-10">Sign In</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => switchMode('sign-up')}
+              className={`relative flex-1 py-2.5 text-xs sm:text-sm font-medium font-sans rounded-lg transition-colors cursor-pointer select-none ${
+                mode === 'sign-up' ? 'text-[#FFFCF9]' : 'text-[#9C8490] hover:text-[#E98DA3]'
+              }`}
+            >
+              {mode === 'sign-up' && (
+                <motion.div
+                  layoutId="auth-tab-pill"
+                  className="absolute inset-0 bg-[#B83B5E] rounded-lg shadow-md shadow-[#B83B5E]/30"
+                  transition={{ type: 'spring', stiffness: 400, damping: 35 }}
+                />
+              )}
+              <span className="relative z-10">Sign Up</span>
+            </button>
+          </div>
 
           {/* Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <h1
-              className="text-3xl font-light text-[#FFFCF9] mb-2 tracking-wide"
+              className="text-3xl font-light text-[#FFFCF9] mb-1 tracking-wide"
               style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
             >
-              {mode === 'sign-in' ? 'Welcome back' : 'Begin your story'}
+              {mode === 'sign-in' ? 'Welcome Back' : 'Begin Your Story'}
             </h1>
-            <p className="text-sm text-[#9C8490] font-sans font-light">
+            <p className="text-xs sm:text-sm text-[#9C8490] font-sans font-light">
               {mode === 'sign-in'
-                ? 'Your world is waiting.'
-                : 'Create your private universe.'}
+                ? 'Your private universe is waiting.'
+                : 'Create a private universe for two.'}
             </p>
           </div>
 
@@ -132,17 +170,19 @@ export function Auth() {
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
 
             {/* Display name — sign up only */}
-            <AnimatePresence>
+            <AnimatePresence mode="wait">
               {mode === 'sign-up' && (
                 <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.25 }}
+                  key="display-name-field"
+                  initial={{ opacity: 0, y: -10, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -10, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
                 >
                   <Input
                     id="display-name"
-                    label="Your name"
+                    label="Your Name"
                     type="text"
                     value={displayName}
                     onChange={e => setDisplayName(e.target.value)}
@@ -154,7 +194,7 @@ export function Auth() {
 
             <Input
               id="email"
-              label="Email"
+              label="Email Address"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
@@ -162,51 +202,51 @@ export function Auth() {
               autoComplete={mode === 'sign-in' ? 'current-email' : 'new-email'}
             />
 
-            <div className="relative">
-              <Input
-                id="password"
-                label="Password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(v => !v)}
-                className="absolute right-3 top-4 text-[#9C8490] hover:text-[#E98DA3] transition-colors cursor-pointer"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
+            <Input
+              id="password"
+              label="Password"
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
+              rightElement={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="text-[#9C8490] hover:text-[#E98DA3] transition-colors cursor-pointer p-1 rounded-md"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              }
+            />
 
-            {/* Error / success */}
+            {/* Error / success banner */}
             <AnimatePresence mode="wait">
               {error && (
-                <motion.p
+                <motion.div
                   key="error"
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="text-sm text-red-400 font-sans text-center"
+                  className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs sm:text-sm text-red-300 font-sans text-center"
                   role="alert"
                 >
                   {error}
-                </motion.p>
+                </motion.div>
               )}
               {success && (
-                <motion.p
+                <motion.div
                   key="success"
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="text-sm text-[#E98DA3] font-sans text-center"
+                  className="p-3 rounded-lg bg-[#E98DA3]/10 border border-[#E98DA3]/20 text-xs sm:text-sm text-[#E98DA3] font-sans text-center"
                   role="status"
                 >
                   {success}
-                </motion.p>
+                </motion.div>
               )}
             </AnimatePresence>
 
@@ -216,22 +256,22 @@ export function Auth() {
               variant="primary"
               size="lg"
               isLoading={submitting}
-              className="w-full mt-2 tracking-widest uppercase text-sm"
+              className="w-full mt-3 tracking-widest uppercase text-sm font-semibold shadow-lg shadow-[#B83B5E]/30"
             >
               {mode === 'sign-in' ? 'Enter Our World' : 'Create Account'}
             </Button>
           </form>
 
-          {/* Mode toggle */}
-          <div className="mt-6 text-center">
+          {/* Mode Toggle Footer */}
+          <div className="mt-6 pt-4 border-t border-white/5 text-center">
             <button
               type="button"
-              onClick={toggleMode}
-              className="text-sm text-[#9C8490] hover:text-[#E98DA3] transition-colors font-sans cursor-pointer"
+              onClick={() => switchMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
+              className="text-xs sm:text-sm text-[#9C8490] hover:text-[#E98DA3] transition-colors font-sans cursor-pointer"
             >
               {mode === 'sign-in'
-                ? "Don't have an account? Begin here."
-                : 'Already have an account? Sign in.'}
+                ? "Need an account? Switch to Sign Up"
+                : 'Already registered? Switch to Sign In'}
             </button>
           </div>
         </div>
