@@ -12,10 +12,11 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    '[Our World] Supabase env vars not set. ' +
-    'Copy frontend/.env.example to frontend/.env.local and fill in your values.'
+const isPlaceholder = !supabaseUrl || supabaseUrl.includes('your-project-ref') || !supabaseAnonKey || supabaseAnonKey.includes('your-supabase-anon-key');
+
+if (isPlaceholder) {
+  console.info(
+    '[Our World] Running in local UI mode. When ready, replace placeholders in frontend/.env.local with your real Supabase project credentials.'
   );
 }
 
