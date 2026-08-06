@@ -20,13 +20,16 @@ Auto-created on user signup via trigger. One-to-one with `auth.users`.
 
 ### `public.couples`
 
-One record per relationship. Created by backend service role only.
+One record per relationship. Created by backend service role or onboarding flow.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | UUID PK | Couple identifier (isolation key) |
-| `couple_name` | TEXT | Optional name for the relationship |
-| `anniversary_date` | DATE | Optional anniversary |
+| `couple_name` | TEXT | Relationship name |
+| `anniversary_date` | DATE | Anniversary date for live counters |
+| `partner_name` | TEXT | Partner nickname/name |
+| `partner_birthday` | DATE | Partner birthday date |
+| `onboarding_completed` | BOOLEAN | Whether onboarding wizard was completed |
 | `partner_1_id` | UUID FK | First partner (auth.users) |
 | `partner_2_id` | UUID FK | Second partner — set on invite acceptance |
 | `created_at` | TIMESTAMPTZ | — |
@@ -50,39 +53,76 @@ Join table. The source of truth for couple membership. Used in every RLS policy.
 
 **UNIQUE**: `(couple_id, user_id)` — a user can only be in a couple once.
 
-**RLS**: A user can only SELECT rows where their own `user_id` appears in the same `couple_id` group. INSERT/DELETE is backend-only.
+**RLS**: A user can only SELECT rows where their own `user_id` appears in the same `couple_id` group.
 
 ---
 
-## RLS Pattern (used in all future tables)
+## Phase 2 Tables
 
-```sql
-ALTER TABLE public.<table> ENABLE ROW LEVEL SECURITY;
+### `public.onboarding_answers`
 
-CREATE POLICY "<table>_couple_member"
-  ON public.<table> FOR SELECT
-  USING (
-    couple_id IN (
-      SELECT couple_id FROM public.couple_members WHERE user_id = auth.uid()
-    )
-  );
-```
+Key-value answers collected during onboarding.
 
-This pattern is used identically for memories, diary, messages, events, playlist, gifts, quizzes in future phases.
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID PK | Primary key |
+| `couple_id` | UUID FK | References `couples.id` |
+| `user_id` | UUID FK | References `auth.users.id` |
+| `question_key` | TEXT | Identifier for the question |
+| `answer_text` | TEXT | Text answer |
 
-## Future Tables (Phase 2+)
+**RLS**: Accessible only by members of `couple_id`.
 
-All will include `couple_id UUID NOT NULL REFERENCES couples(id)` and follow the RLS pattern above.
+---
 
-| Table | Phase |
-|-------|-------|
-| `memories` | 2 |
-| `memory_photos` | 2 |
-| `diary_entries` | 2 |
-| `messages` | 3 |
-| `events` | 3 |
-| `playlist_songs` | 3 |
-| `gifts` | 3 |
-| `quizzes` | 4 |
-| `quiz_answers` | 4 |
-| `ai_suggestions` | 5 |
+### `public.memories`
+
+Timeline memories for the couple.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID PK | Primary key |
+| `couple_id` | UUID FK | References `couples.id` |
+| `author_id` | UUID FK | Creator user ID |
+| `title` | TEXT | Title of the memory |
+| `description` | TEXT | Optional story |
+| `memory_date` | DATE | Date of memory |
+| `location` | TEXT | Optional location |
+| `tags` | TEXT[] | Array of tags |
+
+**RLS**: Accessible by couple members (`couple_id IN (SELECT couple_id FROM couple_members WHERE user_id = auth.uid())`).
+
+---
+
+### `public.memory_photos`
+
+Photo metadata linked to memories. Photos themselves stored in private Supabase storage bucket `memories-photos`.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID PK | Primary key |
+| `memory_id` | UUID FK | References `memories.id` |
+| `couple_id` | UUID FK | References `couples.id` |
+| `storage_path` | TEXT | Storage path `{couple_id}/{memory_id}/{file}` |
+| `caption` | TEXT | Optional photo caption |
+
+---
+
+### `public.diary_entries`
+
+Notebook entries with strict privacy settings.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID PK | Primary key |
+| `couple_id` | UUID FK | References `couples.id` |
+| `author_id` | UUID FK | Creator user ID |
+| `title` | TEXT | Entry title |
+| `content` | TEXT | Notebook entry body |
+| `mood` | TEXT | Emoji mood |
+| `visibility` | TEXT | `PRIVATE` or `SHARED` |
+| `entry_date` | DATE | Entry date |
+
+**RLS Security Rules**:
+- `SHARED`: Readable by couple members.
+- `PRIVATE`: Strictly readable ONLY by `author_id = auth.uid()`. Database layer enforced.

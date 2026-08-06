@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Variants } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Lock, Sparkles, X, Heart } from 'lucide-react';
+import { Settings, LogOut, Lock, Sparkles, X, Heart, Sparkle } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Card } from '@/components/ui/Card';
@@ -20,6 +20,30 @@ export function Home() {
     hour < 17 ? 'Good afternoon' :
     'Good evening';
 
+  // Calculate live days together
+  const daysTogether = useMemo(() => {
+    if (!couple?.anniversary_date) return null;
+    const start = new Date(couple.anniversary_date);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - start.getTime());
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  }, [couple?.anniversary_date]);
+
+  // Calculate live birthday countdown
+  const daysToBirthday = useMemo(() => {
+    if (!couple?.partner_birthday) return null;
+    const today = new Date();
+    const bday = new Date(couple.partner_birthday);
+    const nextBday = new Date(today.getFullYear(), bday.getMonth(), bday.getDate());
+    
+    if (nextBday < today) {
+      nextBday.setFullYear(today.getFullYear() + 1);
+    }
+    
+    const diffTime = nextBday.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }, [couple?.partner_birthday]);
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/', { replace: true });
@@ -36,20 +60,24 @@ export function Home() {
   };
 
   const tiles = [
-    { id: 'memories-tile',  emoji: '📸', label: 'Memories',  phase: 2, desc: 'Shared gallery & memory timeline' },
-    { id: 'diary-tile',     emoji: '📔', label: 'Diary',     phase: 2, desc: 'Private & shared notebook entries' },
-    { id: 'messages-tile',  emoji: '💌', label: 'Messages',  phase: 3, desc: 'Intimate realtime chat' },
-    { id: 'playlist-tile',  emoji: '🎵', label: 'Playlist',  phase: 3, desc: 'Our favorite songs' },
-    { id: 'events-tile',    emoji: '🗓️', label: 'Events',    phase: 3, desc: 'Anniversaries & special dates' },
-    { id: 'gifts-tile',     emoji: '🎁', label: 'Gifts',     phase: 3, desc: 'Wishlist & treasure chest' },
+    { id: 'memories-tile',  emoji: '📸', label: 'Memories',  phase: 2, route: '/memories', desc: 'Shared gallery & memory timeline' },
+    { id: 'diary-tile',     emoji: '📔', label: 'Diary',     phase: 2, route: '/diary',    desc: 'Private & shared notebook entries' },
+    { id: 'messages-tile',  emoji: '💌', label: 'Messages',  phase: 3, route: '/messages', desc: 'Intimate realtime chat' },
+    { id: 'playlist-tile',  emoji: '🎵', label: 'Playlist',  phase: 3, route: '/playlist', desc: 'Our favorite songs' },
+    { id: 'events-tile',    emoji: '🗓️', label: 'Events',    phase: 3, route: '/events',   desc: 'Anniversaries & special dates' },
+    { id: 'gifts-tile',     emoji: '🎁', label: 'Gifts',     phase: 3, route: '/gifts',    desc: 'Wishlist & treasure chest' },
   ];
 
   const handleTileClick = (tile: typeof tiles[0]) => {
-    setActiveNotice(`"${tile.label}" will be unlocked in Phase ${tile.phase} (${tile.desc}).`);
+    if (tile.phase === 2) {
+      navigate(tile.route);
+    } else {
+      navigate(tile.route);
+    }
   };
 
   return (
-    <div className="min-h-dvh bg-our-world px-4 py-8 sm:px-8 sm:py-10 max-w-4xl mx-auto w-full flex flex-col justify-between">
+    <div className="min-h-dvh bg-our-world px-5 py-8 sm:px-10 md:px-16 lg:px-20 sm:py-10 w-full flex flex-col">
 
       {/* Ambient background glow */}
       <div className="pointer-events-none fixed inset-0">
@@ -84,6 +112,15 @@ export function Home() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              id="onboarding-btn"
+              onClick={() => navigate('/onboarding')}
+              className="px-3 py-2 rounded-xl bg-[#E98DA3]/10 border border-[#E98DA3]/30 text-[#E98DA3] text-xs font-sans hover:bg-[#E98DA3]/20 transition-colors cursor-pointer flex items-center gap-1.5"
+              aria-label="Setup / Edit Couple Details"
+            >
+              <Sparkle size={14} />
+              <span className="hidden sm:inline">Onboarding</span>
+            </button>
             <button
               id="settings-btn"
               onClick={() => setActiveNotice('Settings will be fully customizable in upcoming phases.')}
@@ -133,8 +170,8 @@ export function Home() {
           className="space-y-8"
         >
 
-          {/* Days & Birthday Counter Grid (Responsive 2 columns on desktop) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          {/* Days & Birthday Counter Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             
             {/* Days counter */}
             <motion.div variants={itemVariants}>
@@ -150,12 +187,15 @@ export function Home() {
                   className="text-6xl sm:text-7xl font-light text-[#FFFCF9] leading-none my-2"
                   style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
                 >
-                  —
+                  {daysTogether !== null ? daysTogether : '—'}
                 </p>
                 <p className="caption-gold mt-1">DAYS</p>
-                <p className="text-[#9C8490]/60 text-xs font-sans mt-3">
-                  Set your anniversary date in settings
-                </p>
+                <button
+                  onClick={() => navigate('/onboarding')}
+                  className="text-[#9C8490]/70 hover:text-[#E98DA3] text-xs font-sans mt-3 underline transition-colors cursor-pointer"
+                >
+                  {daysTogether !== null ? 'Update anniversary date' : 'Set anniversary date in onboarding'}
+                </button>
               </Card>
             </motion.div>
 
@@ -169,16 +209,24 @@ export function Home() {
                       className="text-4xl sm:text-5xl font-light text-[#FFFCF9]"
                       style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
                     >
-                      — Days
+                      {daysToBirthday !== null ? `${daysToBirthday} Days` : '— Days'}
                     </p>
+                    {couple?.partner_name && (
+                      <p className="text-xs text-[#E98DA3] font-sans mt-1">
+                        For {couple.partner_name}
+                      </p>
+                    )}
                   </div>
                   <FlowerAccent
                     variant="rose" size={52} color="#C9A45C" opacity={0.3} delay={0.5}
                   />
                 </div>
-                <p className="text-[#9C8490] text-xs font-sans mt-4">
-                  A special cinematic experience is waiting
-                </p>
+                <button
+                  onClick={() => navigate('/onboarding')}
+                  className="text-[#9C8490] hover:text-[#FFFCF9] text-xs font-sans mt-4 text-left underline transition-colors cursor-pointer"
+                >
+                  {daysToBirthday !== null ? 'A special cinematic experience is waiting' : 'Set partner birthday in onboarding'}
+                </button>
               </Card>
             </motion.div>
 
@@ -188,13 +236,13 @@ export function Home() {
           <motion.div variants={itemVariants}>
             <div className="flex items-center justify-between mb-4">
               <p className="caption-gold text-xs">Our World Experiences</p>
-              <span className="text-[11px] text-[#9C8490] font-sans px-2.5 py-1 rounded-full bg-white/5 border border-white/10">
-                Phase 1 Foundation
+              <span className="text-[11px] text-[#E98DA3] font-sans px-2.5 py-1 rounded-full bg-[#E98DA3]/10 border border-[#E98DA3]/20">
+                Phase 2 Active
               </span>
             </div>
 
             {/* Grid 2 cols on mobile, 3 cols on desktop */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4">
               {tiles.map((tile) => (
                 <motion.button
                   key={tile.id}
@@ -207,7 +255,11 @@ export function Home() {
                 >
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-3xl">{tile.emoji}</span>
-                    <span className="text-[10px] font-sans font-semibold tracking-widest px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[#9C8490] uppercase">
+                    <span className={`text-[10px] font-sans font-semibold tracking-widest px-2 py-0.5 rounded-full border uppercase ${
+                      tile.phase === 2
+                        ? 'bg-[#E98DA3]/20 border-[#E98DA3]/40 text-[#E98DA3]'
+                        : 'bg-white/5 border-white/10 text-[#9C8490]'
+                    }`}>
                       P{tile.phase}
                     </span>
                   </div>

@@ -1,18 +1,14 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Home, ImageIcon, Heart, MessageCircle, Menu } from 'lucide-react';
+import { Home, ImageIcon, Heart, BookOpen, MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
 import { Spinner } from '@/components/ui/Spinner';
 
-/**
- * AppShell — authenticated layout wrapper.
- * Renders the bottom navigation bar centered as a glass dock,
- * wrapping all protected pages.
- */
 export function AppShell() {
   const { isAuthenticated, isLoading } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -46,21 +42,42 @@ export function AppShell() {
       <nav className="fixed bottom-0 left-0 right-0 z-50 p-3 sm:pb-6 flex justify-center pointer-events-none">
         <div className="glass-card pointer-events-auto rounded-2xl border border-white/10 px-6 py-3 shadow-2xl bg-[#241B20]/90 backdrop-blur-xl w-full max-w-md mx-auto">
           <div className="flex items-center justify-between">
-            <NavItem icon={<Home size={20} />} label="Home" onClick={() => navigate('/home')} active />
-            <NavItem icon={<ImageIcon size={20} />} label="Memories" onClick={() => {}} disabled />
+            <NavItem
+              icon={<Home size={20} />}
+              label="Home"
+              onClick={() => navigate('/home')}
+              active={location.pathname === '/home'}
+            />
+            <NavItem
+              icon={<ImageIcon size={20} />}
+              label="Memories"
+              onClick={() => navigate('/memories')}
+              active={location.pathname === '/memories'}
+            />
             
-            {/* Center add button */}
+            {/* Center heart action */}
             <motion.button
               whileHover={{ scale: 1.1, translateY: -2 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/memories')}
               className="w-12 h-12 rounded-full bg-[#B83B5E] flex items-center justify-center shadow-lg shadow-[#B83B5E]/50 cursor-pointer shrink-0 border border-[#E98DA3]/30 -mt-5"
-              aria-label="Add new"
+              aria-label="Memories"
             >
               <Heart size={20} className="fill-white color-white" />
             </motion.button>
 
-            <NavItem icon={<MessageCircle size={20} />} label="Chat" onClick={() => {}} disabled />
-            <NavItem icon={<Menu size={20} />} label="More" onClick={() => {}} disabled />
+            <NavItem
+              icon={<BookOpen size={20} />}
+              label="Diary"
+              onClick={() => navigate('/diary')}
+              active={location.pathname === '/diary'}
+            />
+            <NavItem
+              icon={<MessageCircle size={20} />}
+              label="Chat"
+              onClick={() => navigate('/messages')}
+              active={location.pathname === '/messages'}
+            />
           </div>
         </div>
       </nav>

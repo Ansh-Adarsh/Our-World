@@ -3,16 +3,15 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Landing } from '@/pages/Landing/Landing';
 import { Auth } from '@/pages/Auth/Auth';
 import { Home } from '@/pages/Home/Home';
+import { Onboarding } from '@/pages/Onboarding/Onboarding';
+import { Memories } from '@/pages/Memories/Memories';
+import { Diary } from '@/pages/Diary/Diary';
+import { MessagesStub, EventsStub, PlaylistStub, GiftsStub } from '@/pages/Stubs/StubPages';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageTransition } from '@/components/layout/PageTransition';
 import { useAuthStore } from '@/stores/authStore';
 import { Spinner } from '@/components/ui/Spinner';
 
-/**
- * App — root router.
- * Initializes auth on mount. Shows global loader until auth state is known.
- * Route guard is in AppShell — unauthenticated users redirected to /auth.
- */
 export function App() {
   const { initialize, isLoading } = useAuthStore();
 
@@ -47,7 +46,13 @@ export function App() {
           {/* Protected — AppShell handles auth guard */}
           <Route element={<AppShell />}>
             <Route path="/home" element={<Home />} />
-            {/* Future phases add routes here */}
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/memories" element={<Memories />} />
+            <Route path="/diary" element={<Diary />} />
+            <Route path="/messages" element={<MessagesStub />} />
+            <Route path="/events" element={<EventsStub />} />
+            <Route path="/playlist" element={<PlaylistStub />} />
+            <Route path="/gifts" element={<GiftsStub />} />
           </Route>
 
           {/* Catch-all */}
