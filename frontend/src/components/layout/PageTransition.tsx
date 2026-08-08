@@ -23,7 +23,7 @@ export function PageTransition({ children }: PageTransitionProps) {
         animate="animate"
         exit="exit"
         transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className="flex-1 flex flex-col"
+        className="flex-1 flex flex-col w-full"
       >
         {children}
       </motion.div>

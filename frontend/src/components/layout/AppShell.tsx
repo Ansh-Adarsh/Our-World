@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Home, ImageIcon, Heart, BookOpen, MessageCircle } from 'lucide-react';
+import { Home, ImageIcon, Heart, MessageCircle, Menu } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
 import { Spinner } from '@/components/ui/Spinner';
@@ -61,22 +61,22 @@ export function AppShell() {
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate('/memories')}
               className="w-12 h-12 rounded-full bg-[#B83B5E] flex items-center justify-center shadow-lg shadow-[#B83B5E]/50 cursor-pointer shrink-0 border border-[#E98DA3]/30 -mt-5"
-              aria-label="Memories"
+              aria-label="Add / Memories"
             >
               <Heart size={20} className="fill-white color-white" />
             </motion.button>
 
             <NavItem
-              icon={<BookOpen size={20} />}
-              label="Diary"
-              onClick={() => navigate('/diary')}
-              active={location.pathname === '/diary'}
-            />
-            <NavItem
               icon={<MessageCircle size={20} />}
               label="Chat"
               onClick={() => navigate('/messages')}
               active={location.pathname === '/messages'}
+            />
+            <NavItem
+              icon={<Menu size={20} />}
+              label="More"
+              onClick={() => navigate('/more')}
+              active={['/more', '/events', '/playlist', '/gifts', '/quizzes', '/understanding'].includes(location.pathname)}
             />
           </div>
         </div>

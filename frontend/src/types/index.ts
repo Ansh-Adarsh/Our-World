@@ -78,6 +78,102 @@ export interface DiaryEntry {
   updated_at: string;
 }
 
+// ─── Phase 3 Entities ─────────────────────────────────────────────────────────
+
+export type EventCategory = 'anniversary' | 'date_night' | 'trip' | 'milestone' | 'other';
+
+export interface CoupleEvent {
+  id: string;
+  couple_id: string;
+  author_id: string;
+  title: string;
+  description: string | null;
+  event_date: string;
+  category: EventCategory;
+  is_annual: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MessageType = 'text' | 'heart' | 'photo' | 'voice_note';
+
+export interface ChatMessage {
+  id: string;
+  couple_id: string;
+  sender_id: string;
+  content: string;
+  message_type: MessageType;
+  created_at: string;
+  sender_name?: string;
+}
+
+export interface PlaylistSong {
+  id: string;
+  couple_id: string;
+  added_by_id: string;
+  title: string;
+  artist: string;
+  link_url: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface GiftItem {
+  id: string;
+  couple_id: string;
+  added_by_id: string;
+  title: string;
+  description: string | null;
+  price_estimate: string | null;
+  link_url: string | null;
+  is_given: boolean;
+  given_at: string | null;
+  created_at: string;
+}
+
+export interface Quiz {
+  id: string;
+  couple_id: string;
+  creator_id: string;
+  title: string;
+  description: string | null;
+  questions?: QuizQuestion[];
+  created_at: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  quiz_id: string;
+  question_text: string;
+  options: string[];
+  correct_option_index: number;
+}
+
+export interface QuizAnswer {
+  id: string;
+  quiz_id: string;
+  question_id: string;
+  user_id: string;
+  selected_option: number;
+  is_correct: boolean;
+  answered_at: string;
+}
+
+export type UnderstandingStatus = 'open' | 'in_progress' | 'resolved';
+
+export interface UnderstandingEntry {
+  id: string;
+  couple_id: string;
+  author_id: string;
+  topic: string;
+  my_perspective: string;
+  partner_perspective_summary: string | null;
+  proposed_resolution: string | null;
+  status: UnderstandingStatus;
+  created_at: string;
+  updated_at: string;
+}
+
 // ─── Auth Types ───────────────────────────────────────────────────────────────
 
 export interface AuthUser {

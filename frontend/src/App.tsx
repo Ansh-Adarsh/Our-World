@@ -6,7 +6,13 @@ import { Home } from '@/pages/Home/Home';
 import { Onboarding } from '@/pages/Onboarding/Onboarding';
 import { Memories } from '@/pages/Memories/Memories';
 import { Diary } from '@/pages/Diary/Diary';
-import { MessagesStub, EventsStub, PlaylistStub, GiftsStub } from '@/pages/Stubs/StubPages';
+import { Events } from '@/pages/Events/Events';
+import { Messages } from '@/pages/Messages/Messages';
+import { Playlist } from '@/pages/Playlist/Playlist';
+import { Gifts } from '@/pages/Gifts/Gifts';
+import { Quizzes } from '@/pages/Quizzes/Quizzes';
+import { UnderstandingCorner } from '@/pages/Understanding/UnderstandingCorner';
+import { MoreMenu } from '@/pages/More/MoreMenu';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageTransition } from '@/components/layout/PageTransition';
 import { useAuthStore } from '@/stores/authStore';
@@ -49,10 +55,13 @@ export function App() {
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/memories" element={<Memories />} />
             <Route path="/diary" element={<Diary />} />
-            <Route path="/messages" element={<MessagesStub />} />
-            <Route path="/events" element={<EventsStub />} />
-            <Route path="/playlist" element={<PlaylistStub />} />
-            <Route path="/gifts" element={<GiftsStub />} />
+            <Route path="/events" element={<Events />} />
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/playlist" element={<Playlist />} />
+            <Route path="/gifts" element={<Gifts />} />
+            <Route path="/quizzes" element={<Quizzes />} />
+            <Route path="/understanding" element={<UnderstandingCorner />} />
+            <Route path="/more" element={<MoreMenu />} />
           </Route>
 
           {/* Catch-all */}

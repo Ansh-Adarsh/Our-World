@@ -1,16 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Variants } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Lock, Sparkles, X, Heart, Sparkle } from 'lucide-react';
+import { Settings, LogOut, Lock, Sparkles, X, Heart, Sparkle, Calendar } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
+import { fetchEvents } from '@/services/eventsService';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Card } from '@/components/ui/Card';
+import type { CoupleEvent } from '@/types';
 
 export function Home() {
   const { user, couple, signOut } = useAuthStore();
   const navigate = useNavigate();
   const [activeNotice, setActiveNotice] = useState<string | null>(null);
+  const [nextEvent, setNextEvent] = useState<CoupleEvent | null>(null);
 
   const displayName = user?.profile?.display_name || 'My Love';
 
@@ -44,6 +47,21 @@ export function Home() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }, [couple?.partner_birthday]);
 
+  useEffect(() => {
+    async function loadNextEvent() {
+      const coupleId = couple?.id || 'demo-couple';
+      const evts = await fetchEvents(coupleId);
+      const today = new Date();
+      const upcoming = evts
+        .filter((e) => new Date(e.event_date) >= today)
+        .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
+      if (upcoming.length > 0) {
+        setNextEvent(upcoming[0]);
+      }
+    }
+    loadNextEvent();
+  }, [couple?.id]);
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/', { replace: true });
@@ -60,21 +78,15 @@ export function Home() {
   };
 
   const tiles = [
-    { id: 'memories-tile',  emoji: '📸', label: 'Memories',  phase: 2, route: '/memories', desc: 'Shared gallery & memory timeline' },
-    { id: 'diary-tile',     emoji: '📔', label: 'Diary',     phase: 2, route: '/diary',    desc: 'Private & shared notebook entries' },
-    { id: 'messages-tile',  emoji: '💌', label: 'Messages',  phase: 3, route: '/messages', desc: 'Intimate realtime chat' },
-    { id: 'playlist-tile',  emoji: '🎵', label: 'Playlist',  phase: 3, route: '/playlist', desc: 'Our favorite songs' },
-    { id: 'events-tile',    emoji: '🗓️', label: 'Events',    phase: 3, route: '/events',   desc: 'Anniversaries & special dates' },
-    { id: 'gifts-tile',     emoji: '🎁', label: 'Gifts',     phase: 3, route: '/gifts',    desc: 'Wishlist & treasure chest' },
+    { id: 'memories-tile',  emoji: '📸', label: 'Memories',     phase: 2, route: '/memories',      desc: 'Shared gallery & memory timeline' },
+    { id: 'diary-tile',     emoji: '📔', label: 'Diary',        phase: 2, route: '/diary',         desc: 'Private & shared notebook entries' },
+    { id: 'messages-tile',  emoji: '💌', label: 'Messages',     phase: 3, route: '/messages',      desc: 'Intimate realtime chat' },
+    { id: 'playlist-tile',  emoji: '🎵', label: 'Playlist',     phase: 3, route: '/playlist',      desc: 'Our shared music soundtrack' },
+    { id: 'events-tile',    emoji: '🗓️', label: 'Events',       phase: 3, route: '/events',        desc: 'Anniversaries & countdowns' },
+    { id: 'gifts-tile',     emoji: '🎁', label: 'Gifts',        phase: 3, route: '/gifts',         desc: 'Wishlist & surprise gifts' },
+    { id: 'quizzes-tile',   emoji: '🎮', label: 'Quizzes',      phase: 3, route: '/quizzes',       desc: 'Trivia: How well do you know us?' },
+    { id: 'understanding',  emoji: '🕊️', label: 'Understanding',phase: 3, route: '/understanding', desc: 'Calm space for resolving disagreements' },
   ];
-
-  const handleTileClick = (tile: typeof tiles[0]) => {
-    if (tile.phase === 2) {
-      navigate(tile.route);
-    } else {
-      navigate(tile.route);
-    }
-  };
 
   return (
     <div className="min-h-dvh bg-our-world px-5 py-8 sm:px-10 md:px-16 lg:px-20 sm:py-10 w-full flex flex-col">
@@ -170,8 +182,8 @@ export function Home() {
           className="space-y-8"
         >
 
-          {/* Days & Birthday Counter Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          {/* Days, Birthday & Next Event Counter Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             
             {/* Days counter */}
             <motion.div variants={itemVariants}>
@@ -189,7 +201,7 @@ export function Home() {
                 >
                   {daysTogether !== null ? daysTogether : '—'}
                 </p>
-                <p className="caption-gold mt-1">DAYS</p>
+                <p className="caption-gold mt-1">DAYS TOGETHER</p>
                 <button
                   onClick={() => navigate('/onboarding')}
                   className="text-[#9C8490]/70 hover:text-[#E98DA3] text-xs font-sans mt-3 underline transition-colors cursor-pointer"
@@ -230,6 +242,46 @@ export function Home() {
               </Card>
             </motion.div>
 
+            {/* Next Upcoming Event Ticker */}
+            <motion.div variants={itemVariants}>
+              <Card variant="dark" className="relative overflow-hidden border border-[#E98DA3]/30 h-full flex flex-col justify-between p-6 sm:p-8 bg-gradient-to-br from-[#2E2028] to-[#241B20]">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="caption-gold mb-2 flex items-center gap-1.5">
+                      <Calendar size={14} className="text-[#C9A45C]" />
+                      Next Event Ticker
+                    </p>
+                    {nextEvent ? (
+                      <div>
+                        <h3
+                          className="text-2xl font-serif text-[#FFFCF9] mb-1"
+                          style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+                        >
+                          {nextEvent.title}
+                        </h3>
+                        <p className="text-xs text-[#E98DA3] font-sans">
+                          {new Date(nextEvent.event_date).toLocaleDateString(undefined, {
+                            dateStyle: 'medium',
+                          })}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[#9C8490] font-sans mt-2">
+                        No upcoming event planned.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => navigate('/events')}
+                  className="text-[#C9A45C] hover:text-white text-xs font-sans mt-4 text-left underline transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <span>{nextEvent ? 'View all events & countdowns' : '+ Add upcoming date or trip'}</span>
+                </button>
+              </Card>
+            </motion.div>
+
           </div>
 
           {/* Navigation tiles Section */}
@@ -237,12 +289,12 @@ export function Home() {
             <div className="flex items-center justify-between mb-4">
               <p className="caption-gold text-xs">Our World Experiences</p>
               <span className="text-[11px] text-[#E98DA3] font-sans px-2.5 py-1 rounded-full bg-[#E98DA3]/10 border border-[#E98DA3]/20">
-                Phase 2 Active
+                Phase 3 Active
               </span>
             </div>
 
-            {/* Grid 2 cols on mobile, 3 cols on desktop */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {/* Grid layout */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {tiles.map((tile) => (
                 <motion.button
                   key={tile.id}
@@ -251,15 +303,11 @@ export function Home() {
                   whileTap={{ scale: 0.98 }}
                   className="glass-card p-5 sm:p-6 text-left cursor-pointer group relative overflow-hidden transition-all duration-200 hover:border-[#E98DA3]/40 flex flex-col justify-between min-h-[120px]"
                   aria-label={`Go to ${tile.label}`}
-                  onClick={() => handleTileClick(tile)}
+                  onClick={() => navigate(tile.route)}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-3xl">{tile.emoji}</span>
-                    <span className={`text-[10px] font-sans font-semibold tracking-widest px-2 py-0.5 rounded-full border uppercase ${
-                      tile.phase === 2
-                        ? 'bg-[#E98DA3]/20 border-[#E98DA3]/40 text-[#E98DA3]'
-                        : 'bg-white/5 border-white/10 text-[#9C8490]'
-                    }`}>
+                    <span className="text-[10px] font-sans font-semibold tracking-widest px-2 py-0.5 rounded-full border uppercase bg-[#E98DA3]/20 border-[#E98DA3]/40 text-[#E98DA3]">
                       P{tile.phase}
                     </span>
                   </div>
