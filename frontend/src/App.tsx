@@ -13,6 +13,7 @@ import { Gifts } from '@/pages/Gifts/Gifts';
 import { Quizzes } from '@/pages/Quizzes/Quizzes';
 import { UnderstandingCorner } from '@/pages/Understanding/UnderstandingCorner';
 import { MoreMenu } from '@/pages/More/MoreMenu';
+import { BirthdayExperience } from '@/pages/Birthday/BirthdayExperience';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageTransition } from '@/components/layout/PageTransition';
 import { useAuthStore } from '@/stores/authStore';
@@ -62,6 +63,7 @@ export function App() {
             <Route path="/quizzes" element={<Quizzes />} />
             <Route path="/understanding" element={<UnderstandingCorner />} />
             <Route path="/more" element={<MoreMenu />} />
+            <Route path="/birthday" element={<BirthdayExperience />} />
           </Route>
 
           {/* Catch-all */}

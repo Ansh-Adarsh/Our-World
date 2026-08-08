@@ -3,7 +3,7 @@ import { supabase } from './supabase';
 const API_BASE = import.meta.env.VITE_API_BASE_URL as string || 'http://localhost:8000';
 
 export interface AIGenerateRequest {
-  intent: 'memory_caption' | 'love_letter' | 'quiz_suggestion' | 'story_narrative' | 'surprise_idea';
+  intent: 'memory_caption' | 'love_letter' | 'quiz_suggestion' | 'story_narrative' | 'surprise_idea' | 'birthday_experience';
   context?: Record<string, unknown>;
 }
 

@@ -31,16 +31,19 @@ export function AppShell() {
 
   if (!isAuthenticated) return null;
 
+  const isFullscreen = location.pathname === '/birthday';
+
   return (
     <div className="flex-1 flex flex-col bg-our-world min-h-dvh relative">
       {/* Page content */}
-      <main className="flex-1 pb-24 overflow-y-auto w-full">
+      <main className={`flex-1 overflow-y-auto w-full ${isFullscreen ? 'pb-0' : 'pb-24'}`}>
         <Outlet />
       </main>
 
       {/* Floating Bottom Glass Dock */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 p-3 sm:pb-6 flex justify-center pointer-events-none">
-        <div className="glass-card pointer-events-auto rounded-2xl border border-white/10 px-6 py-3 shadow-2xl bg-[#241B20]/90 backdrop-blur-xl w-full max-w-md mx-auto">
+      {!isFullscreen && (
+        <nav className="fixed bottom-0 left-0 right-0 z-50 p-3 sm:pb-6 flex justify-center pointer-events-none">
+          <div className="glass-card pointer-events-auto rounded-2xl border border-white/10 px-6 py-3 shadow-2xl bg-[#241B20]/90 backdrop-blur-xl w-full max-w-md mx-auto">
           <div className="flex items-center justify-between">
             <NavItem
               icon={<Home size={20} />}
@@ -81,7 +84,8 @@ export function AppShell() {
           </div>
         </div>
       </nav>
-    </div>
+    )}
+  </div>
   );
 }
 

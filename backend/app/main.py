@@ -40,6 +40,18 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type"],
     )
 
+    # ─── Request Body Size Limit Middleware (Max 1MB) ────────────────────────
+    @app.middleware("http")
+    async def limit_request_size(request, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > 1_048_576:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Request payload exceeds 1MB limit."},
+            )
+        return await call_next(request)
+
     # ─── Routes ──────────────────────────────────────────────────────────────
     app.include_router(health_router)
     app.include_router(couples_router, prefix="/api/v1")

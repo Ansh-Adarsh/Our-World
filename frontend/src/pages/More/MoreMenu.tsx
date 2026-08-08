@@ -39,6 +39,14 @@ export function MoreMenu() {
       emoji: '🎮',
     },
     {
+      id: 'birthday',
+      title: 'Birthday Cinematic',
+      desc: '7-chapter cinematic milestone celebration with flower blooms & letters.',
+      icon: <Sparkles size={28} className="text-[#C9A45C]" />,
+      route: '/birthday',
+      emoji: '🎂',
+    },
+    {
       id: 'understanding',
       title: 'Understanding Corner',
       desc: 'Calm, non-blame space for working through disagreements together.',

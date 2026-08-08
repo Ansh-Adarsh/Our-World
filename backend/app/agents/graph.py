@@ -47,7 +47,7 @@ async def route_and_execute_agent(intent: str, context: Dict[str, Any]) -> Dict[
     elif intent == "surprise_idea":
         return await surprise_agent_node(state)
     elif intent == "birthday_experience":
-        return await birthday_agent_stub_node(state)
+        return await birthday_agent_node(state)
     else:
         return await default_agent_node(state)
 
@@ -129,11 +129,19 @@ async def surprise_agent_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-async def birthday_agent_stub_node(state: AgentState) -> Dict[str, Any]:
+async def birthday_agent_node(state: AgentState) -> Dict[str, Any]:
+    ctx = state["context"]
+    partner_name = ctx.get("partner_name", "My Partner")
+    milestone = ctx.get("milestone", "another wonderful year around the sun")
+
+    sys_prompt = "You are an intimate, poetic relationship birthday speech and letter writer. Write a breathtaking 3-paragraph birthday message filled with gratitude, joy, and hope for the future."
+    usr_prompt = f"Partner: {partner_name}. Milestone: {milestone}. Write a cinematic birthday letter."
+
+    content = await call_groq_llm(sys_prompt, usr_prompt, temperature=0.85, max_tokens=500)
     return {
         "intent": state["intent"],
-        "agent_name": "BirthdayAgentStub",
-        "draft_content": "A cinematic birthday milestone experience is being prepped for Phase 5 release! 🎂✨",
+        "agent_name": "BirthdayAgent",
+        "draft_content": content,
     }
 
 
