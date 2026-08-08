@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Heart, MessageCircle, ShieldCheck } from 'lucide-react';
+import { Send, Heart, MessageCircle, ShieldCheck, Bot } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchMessages, sendMessage, subscribeToMessages } from '@/services/messagesService';
+import { generateAIContent } from '@/services/aiService';
+import { HumanApprovalModal } from '@/components/ui/HumanApprovalModal';
 import type { ChatMessage } from '@/types';
 
 export function Messages() {
@@ -11,6 +13,10 @@ export function Messages() {
   const [textInput, setTextInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+
+  // AI Love Letter state
+  const [isAILoading, setIsAILoading] = useState(false);
+  const [aiDraft, setAIDraft] = useState<{ content: string; agent: string } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -109,6 +115,35 @@ export function Messages() {
           <Heart size={14} className="fill-[#E98DA3]" />
           <span>Send Heart</span>
         </button>
+        <button
+          disabled={isAILoading}
+          onClick={async () => {
+            setIsAILoading(true);
+            const result = await generateAIContent({
+              intent: 'love_letter',
+              context: { partner_name: couple?.partner_name ?? 'My Love', topic: 'gratitude and love' },
+            });
+            setAIDraft({ content: result.draft_content, agent: result.agent_name });
+            setIsAILoading(false);
+          }}
+          className="px-3 py-1.5 rounded-full bg-[#C9A45C]/15 border border-[#C9A45C]/30 text-[#C9A45C] text-xs font-sans hover:bg-[#C9A45C]/30 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+        >
+          <Bot size={14} />
+          <span>{isAILoading ? 'Drafting...' : 'AI Letter 💌'}</span>
+        </button>
+
+        {/* Human Approval Modal for love letters */}
+        <HumanApprovalModal
+          isOpen={!!aiDraft}
+          agentName={aiDraft?.agent ?? ''}
+          intent="love_letter"
+          draftContent={aiDraft?.content ?? ''}
+          onApprove={(approved) => {
+            setTextInput(approved);
+            setAIDraft(null);
+          }}
+          onReject={() => setAIDraft(null)}
+        />
       </div>
 
       {/* Messages Scroll Area */}

@@ -24,16 +24,20 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     jwt_algorithm: str = "HS256"
 
+    # Groq LLM — backend ONLY
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+
     # CORS
-    allowed_origins: str = "http://localhost:5173"
+    allowed_origins: str = "http://localhost:5173,http://localhost:5174"
 
     @property
     def allowed_origins_list(self) -> List[str]:
-        return [o.strip() for o in self.allowed_origins.split(",")]
+        return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
     # App metadata
     app_name: str = "Our World API"
-    app_version: str = "0.1.0"
+    app_version: str = "0.4.0"
     debug: bool = False
 
 

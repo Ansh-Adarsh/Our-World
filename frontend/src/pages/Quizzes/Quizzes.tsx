@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HelpCircle, Plus, Award, Sparkles, X, RotateCcw } from 'lucide-react';
+import { HelpCircle, Plus, Award, Sparkles, X, RotateCcw, Bot } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchQuizzes, createQuiz } from '@/services/quizzesService';
+import { generateAIContent } from '@/services/aiService';
+import { HumanApprovalModal } from '@/components/ui/HumanApprovalModal';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Button } from '@/components/ui/Button';
 import type { Quiz } from '@/types';
@@ -29,6 +31,10 @@ export function Quizzes() {
   const [opt3, setOpt3] = useState('');
   const [correctIdx, setCorrectIdx] = useState(0);
   const [questionsList, setQuestionsList] = useState<{ questionText: string; options: string[]; correctOptionIndex: number }[]>([]);
+
+  // AI suggestion state
+  const [isAILoading, setIsAILoading] = useState(false);
+  const [aiDraft, setAIDraft] = useState<{ content: string; agent: string } | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -330,9 +336,41 @@ export function Quizzes() {
                 </div>
 
                 <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3">
-                  <p className="text-xs font-sans uppercase tracking-widest text-[#C9A45C]">
-                    Add Question #{questionsList.length + 1}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-sans uppercase tracking-widest text-[#C9A45C]">
+                      Add Question #{questionsList.length + 1}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={isAILoading}
+                      onClick={async () => {
+                        setIsAILoading(true);
+                        const result = await generateAIContent({
+                          intent: 'quiz_suggestion',
+                          context: { topic: quizTitle || 'our couple memories' },
+                        });
+                        setAIDraft({ content: result.draft_content, agent: result.agent_name });
+                        setIsAILoading(false);
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#C9A45C]/15 border border-[#C9A45C]/30 text-[#C9A45C] text-xs font-sans hover:bg-[#C9A45C]/25 transition-colors cursor-pointer disabled:opacity-40"
+                    >
+                      <Bot size={12} />
+                      {isAILoading ? 'Generating...' : 'AI Suggest 🤖'}
+                    </button>
+                  </div>
+
+                  {/* Human Approval Modal for quiz suggestions */}
+                  <HumanApprovalModal
+                    isOpen={!!aiDraft}
+                    agentName={aiDraft?.agent ?? ''}
+                    intent="quiz_suggestion"
+                    draftContent={aiDraft?.content ?? ''}
+                    onApprove={(approved) => {
+                      setQText(approved);
+                      setAIDraft(null);
+                    }}
+                    onReject={() => setAIDraft(null)}
+                  />
                   <input
                     type="text"
                     placeholder="Question text (e.g. Where did we first meet?)"

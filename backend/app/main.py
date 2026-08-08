@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from app.core.config import Settings, get_settings
 from app.core.logging import configure_logging
 from app.core.security import get_current_user_id
+from app.api.v1.ai import ai_router
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     # ─── Routes ──────────────────────────────────────────────────────────────
     app.include_router(health_router)
     app.include_router(couples_router, prefix="/api/v1")
+    app.include_router(ai_router, prefix="/api/v1")
 
     logger.info("Our World API started (version %s)", settings.app_version)
     return app

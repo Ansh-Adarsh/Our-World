@@ -2,9 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Variants } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Settings, LogOut, Lock, Sparkles, X, Heart, Sparkle, Calendar } from 'lucide-react';
+import { Settings, LogOut, Lock, Sparkles, X, Heart, Sparkle, Calendar, Bot } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchEvents } from '@/services/eventsService';
+import { generateAIContent } from '@/services/aiService';
+import { HumanApprovalModal } from '@/components/ui/HumanApprovalModal';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Card } from '@/components/ui/Card';
 import type { CoupleEvent } from '@/types';
@@ -14,6 +16,10 @@ export function Home() {
   const navigate = useNavigate();
   const [activeNotice, setActiveNotice] = useState<string | null>(null);
   const [nextEvent, setNextEvent] = useState<CoupleEvent | null>(null);
+
+  // AI Surprise Idea state
+  const [isAILoading, setIsAILoading] = useState(false);
+  const [aiDraft, setAIDraft] = useState<{ content: string; agent: string } | null>(null);
 
   const displayName = user?.profile?.display_name || 'My Love';
 
@@ -326,6 +332,51 @@ export function Home() {
 
         </motion.div>
       </div>
+
+      {/* AI Surprise Date Idea Section */}
+      <div className="mt-8 relative z-10">
+        <div className="glass-card p-6 rounded-2xl border border-[#C9A45C]/20 bg-gradient-to-r from-[#2E2028]/80 to-[#241B20]/90 flex items-center justify-between gap-4">
+          <div>
+            <p className="caption-gold text-xs mb-1 flex items-center gap-1.5">
+              <Bot size={13} className="text-[#C9A45C]" />
+              AI SURPRISE GENERATOR
+            </p>
+            <h3 className="text-lg text-[#FFFCF9] font-serif" style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}>
+              Need a surprise date idea?
+            </h3>
+            <p className="text-xs text-[#9C8490] font-sans mt-1">Our AI will suggest a romantic date plan. You approve it first. ✨</p>
+          </div>
+          <button
+            disabled={isAILoading}
+            onClick={async () => {
+              setIsAILoading(true);
+              const result = await generateAIContent({
+                intent: 'surprise_idea',
+                context: { preference: 'cozy and romantic' },
+              });
+              setAIDraft({ content: result.draft_content, agent: result.agent_name });
+              setIsAILoading(false);
+            }}
+            className="shrink-0 flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#B83B5E] to-[#C9A45C] text-white text-sm font-sans font-semibold hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 shadow-lg"
+          >
+            <Sparkles size={16} />
+            {isAILoading ? 'Thinking...' : 'Surprise Me 💡'}
+          </button>
+        </div>
+      </div>
+
+      {/* Human Approval Modal for surprise date ideas */}
+      <HumanApprovalModal
+        isOpen={!!aiDraft}
+        agentName={aiDraft?.agent ?? ''}
+        intent="surprise_idea"
+        draftContent={aiDraft?.content ?? ''}
+        onApprove={(approved) => {
+          setActiveNotice(`💡 Date Idea: ${approved}`);
+          setAIDraft(null);
+        }}
+        onReject={() => setAIDraft(null)}
+      />
 
       <div className="h-12" />
     </div>

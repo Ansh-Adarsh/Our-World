@@ -26,9 +26,9 @@ Beautiful on the outside. Extremely boring and strict on the security side. ❤�
 | Realtime | Supabase Realtime Channels |
 | Storage | Supabase Storage (private bucket `memories-photos`) |
 | Backend | Python / FastAPI |
-| AI Orchestration | LangGraph (Phase 5) |
-| AI Provider | Groq (Phase 5) |
-| PWA | Vite PWA Plugin (Phase 4) |
+| AI Orchestration | LangGraph (Phase 4 — active) |
+| AI Provider | Groq `llama-3.3-70b-versatile` (Phase 4 — active) |
+| PWA | Vite PWA Plugin (Phase 5) |
 
 ---
 
@@ -49,7 +49,8 @@ Beautiful on the outside. Extremely boring and strict on the security side. ❤�
                  │       Frontend        │
                  │                       │
                  │  ✅ anon key only     │
-                 │  ❌ NO secret keys    │
+                 │  ❌ NO Groq key       │
+                 │  ❌ NO service key    │
                  └───────────┬───────────┘
                              │
              ┌───────────────┼────────────────┐
@@ -58,13 +59,24 @@ Beautiful on the outside. Extremely boring and strict on the security side. ❤�
         Supabase API      FastAPI          Supabase
       (Auth + DB +      Backend          Storage
        Realtime)        ALL secrets      Private `memories-photos`
-     anon key only           │             Signed URLs
-             │               │
-             ▼               ▼
-       PostgreSQL        LangGraph (P5)
-       + RLS                  │
-       + Realtime             ▼
-                            Groq (P5)
+     anon key only      GROQ_API_KEY     Signed URLs
+             │          Rate Limiter
+             ▼               │
+       PostgreSQL       LangGraph Router
+       + RLS                 │
+       + Realtime    ┌───────┴──────────┐
+                     │                  │
+                 Agent Nodes       Groq LLM
+                 ─ Memory          (backend only)
+                 ─ LoveLetter
+                 ─ Quiz
+                 ─ Story
+                 ─ Surprise
+                 ─ Birthday (stub)
+                     │
+                     ▼
+              Draft → Human Approval UI
+              (Approve / Edit / Reject)
 ```
 
 ---
@@ -139,6 +151,7 @@ cp frontend/.env.example frontend/.env.local
 # Backend env
 cp backend/.env.example backend/.env
 # Fill in SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, JWT_SECRET
+# Fill in GROQ_API_KEY (Phase 4 AI features — get from https://console.groq.com)
 ```
 
 ---
@@ -191,11 +204,15 @@ uvicorn app.main:app --reload --port 8000
 
 1. **Frontend is public** — treat it as if anyone can read your JavaScript bundle
 2. **Service-role key** never appears in frontend code or git history — ever
-3. **RLS on every table** — default deny, explicit allow per couple membership
-4. **Realtime Messaging Security** — Users can only subscribe to their own `couple_id` realtime message channel
-5. **Diary Privacy Guarantee** — `PRIVATE` diary entries are strictly filtered by PostgreSQL RLS (`author_id = auth.uid()`)
-6. **Private storage buckets** — photos stored in private bucket `memories-photos`, accessed ONLY via temporary signed URLs
-7. **Couple isolation** — `couple_id` verified by the database on every query
+3. **Groq API key** lives exclusively in `backend/.env` — the browser never contacts Groq directly
+4. **RLS on every table** — default deny, explicit allow per couple membership
+5. **Realtime Messaging Security** — Users can only subscribe to their own `couple_id` realtime message channel
+6. **Diary Privacy Guarantee** — `PRIVATE` diary entries are strictly filtered by PostgreSQL RLS (`author_id = auth.uid()`)
+7. **Private storage buckets** — photos stored in private bucket `memories-photos`, accessed ONLY via temporary signed URLs
+8. **Couple isolation** — `couple_id` verified by the database on every query
+9. **AI rate limiting** — AI endpoints enforce max 10 requests per user per 60 seconds
+10. **AI data minimization** — prompts send only specific context fields (title/location/topic), never full message history or diary dumps
+11. **Mandatory human approval** — AI-generated content requires Approve/Edit/Reject before any content is saved or sent
 
 See [`docs/security.md`](docs/security.md) for full security model.
 
@@ -207,9 +224,12 @@ See [`docs/security.md`](docs/security.md) for full security model.
 |-------|--------|
 | Frontend TypeScript build | ✅ 0 errors |
 | Secret scan in frontend/src | ✅ 0 secrets found |
+| Groq key in frontend/src | ✅ 0 occurrences |
 | Backend FastAPI startup | ✅ clean |
 | RLS on all DB tables | ✅ enforced |
 | Supabase Realtime Channels | ✅ configured |
+| AI rate limiting | ✅ 10 req/min/user |
+| Human approval flow | ✅ all AI drafts gated |
 
 ---
 
@@ -219,9 +239,9 @@ See [`docs/security.md`](docs/security.md) for full security model.
 |-------|-------------|--------|
 | **Phase 1** | Foundation, auth, design system | ✅ **Complete** |
 | **Phase 2** | Onboarding, memories, diary, photo storage | ✅ **Complete** |
-| **Phase 3** | Events, messaging, playlist, gifts, quizzes, understanding corner | ✅ **Phase 3 of 5 Complete** |
-| Phase 4 | Quizzes enhancement, understanding corner AI prep, PWA | 🔜 |
-| Phase 5 | AI (LangGraph + Groq), birthday experience, hardening | 🔜 |
+| **Phase 3** | Events, messaging, playlist, gifts, quizzes, understanding corner | ✅ **Complete** |
+| **Phase 4** | FastAPI backend, LangGraph agents, Groq AI, human approval flow | ✅ **Phase 4 of 5 Complete** |
+| Phase 5 | Birthday cinematic experience, PWA, AI hardening | 🔜 |
 
 ---
 
@@ -231,14 +251,64 @@ See [`docs/security.md`](docs/security.md) for full security model.
 
 What was built in Phase 3:
 - **Layout & Full-Width Fix**: Updated `PageTransition.tsx` (`w-full`) so all subpages expand 100% width across the screen.
-- **Events & Countdown Engine (`/events`)**: Shared events calendar, category tags (*anniversary*, *date_night*, *trip*, *milestone*), live countdown timers, and Home dashboard Next Event Ticker card integration.
-- **Realtime Chat (`/messages`)**: Intimate couple chat with Supabase Realtime channel subscriptions, message history, timestamp formatting, and quick heart action.
-- **Playlist Soundtrack (`/playlist`)**: Shared music soundtrack storing title, artist, link (Spotify/YouTube/Apple Music), and personal memory notes.
-- **Gift Shop & Wishlist (`/gifts`)**: Gift wishlist grid with filter tabs (*All*, *Wishlist*, *Gifted 🎁*) and mark-as-given status toggles.
-- **Playful Quizzes (`/quizzes`)**: Interactive "How Well Do You Know Us?" trivia cards, quiz taker with instant score reveal (*e.g. 4/5 Correct! 🎉*), and quiz builder modal.
-- **Understanding Corner (`/understanding`)**: Calm, non-blame structured entry space for working through disagreements with perspective cards, resolution agreements, and status tags.
-- **More Experiences Hub (`/more`) & Mobile Navigation Dock**: Updated bottom dock mapping Home / Memories / Add (+) / Chat / More hub.
-- **Database Migration (`003_phase3_schema.sql`)**: Full RLS policies for `events`, `messages`, `playlist_songs`, `gifts`, `quizzes`, `quiz_questions`, `quiz_answers`, `understanding_entries`, and Realtime publication setup.
+- **Events & Countdown Engine (`/events`)**: Shared events calendar, category tags, live countdown timers, and Home dashboard Next Event Ticker.
+- **Realtime Chat (`/messages`)**: Intimate couple chat with Supabase Realtime channel subscriptions, message history, and quick heart action.
+- **Playlist Soundtrack (`/playlist`)**: Shared music soundtrack storing title, artist, link, and personal memory notes.
+- **Gift Shop & Wishlist (`/gifts`)**: Gift wishlist grid with filter tabs and mark-as-given status toggles.
+- **Playful Quizzes (`/quizzes`)**: Interactive trivia cards, quiz taker with instant scoring, and quiz builder modal.
+- **Understanding Corner (`/understanding`)**: Calm, non-blame structured entry space with perspective cards, resolution agreements, and status tags.
+- **More Hub (`/more`) & Navigation Dock**: Home / Memories / Add (+) / Chat / More.
+- **Database Migration (`003_phase3_schema.sql`)**: Full RLS policies for all Phase 3 tables and Realtime publication setup.
+
+---
+
+## Phase 4 — Complete ✅
+
+**Commit:** `[phase-4] FastAPI backend, LangGraph agents, Groq integration, human approval flow`
+
+### AI Architecture
+
+```
+[React Frontend] ─── POST /api/v1/ai/generate ──► [FastAPI Backend]
+     (no Groq key)     (JWT Bearer Token)           (holds GROQ_API_KEY)
+                                                             │
+                                                    Rate Limiter (10/min)
+                                                             │
+                                                    LangGraph Router Node
+                                                             │
+                    ┌────────────────────────────────────────┤
+                    │                                        │
+             Agent Nodes                              Groq LLM API
+             ─ MemoryAgent (captions)                 (backend only)
+             ─ LoveLetterAgent (letters)
+             ─ QuizAgent (trivia questions)
+             ─ StoryAgent (narratives)
+             ─ SurpriseAgent (date ideas)
+             ─ BirthdayAgentStub (Phase 5)
+                    │
+                    ▼
+         Draft Candidate Returned
+                    │
+                    ▼
+    ┌─── Human Approval Modal (Frontend) ───┐
+    │  Approve ✨  │  Edit ✏️  │  Reject ❌  │
+    └─────────────────────────────────────--┘
+             Nothing auto-saves.
+```
+
+### What was built in Phase 4:
+- **FastAPI AI Router (`/api/v1/ai/generate`)**: Authenticated, rate-limited endpoint (10 req/min/user).
+- **LangGraph Orchestration (`app/agents/graph.py`)**: Router node dispatching to specialized agents.
+- **Groq LLM Integration (`app/ai/groq_client.py`)**: Backend-only Groq API caller with graceful fallback if unconfigured.
+- **Rate Limiter (`app/core/rate_limiter.py`)**: In-memory sliding-window rate limiter per user.
+- **AI Schemas (`app/schemas/ai.py`)**: Typed Pydantic request/response models.
+- **Human Approval Modal (`HumanApprovalModal.tsx`)**: Reusable component presenting AI drafts with Approve / Edit / Reject actions. Nothing publishes automatically.
+- **AI Caption Assistant** integrated into Memories memory creation form.
+- **AI Love Letter Draft** integrated into Messages chat header.
+- **AI Quiz Suggestion** integrated into Quizzes builder modal.
+- **AI Surprise Date Idea** integrated into Home dashboard.
+- **Data minimization**: Prompts send only specific fields (title, location, topic, partner_name) — never full diary/message history.
+- **Offline fallback**: All AI calls gracefully degrade to warm structured mock content when GROQ_API_KEY is unset.
 
 ---
 

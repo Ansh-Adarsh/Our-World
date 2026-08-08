@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, MapPin, Calendar, Tag, X, Image as ImageIcon, Sparkles, Lock } from 'lucide-react';
+import { Plus, Calendar, X, Image as ImageIcon, Sparkles, Bot, MapPin, Tag, Lock } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchMemories, createMemory } from '@/services/memoriesService';
 import { uploadMemoryPhoto } from '@/services/storage';
+import { generateAIContent } from '@/services/aiService';
+import { HumanApprovalModal } from '@/components/ui/HumanApprovalModal';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -25,6 +27,10 @@ export function Memories() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+
+  // AI Caption state
+  const [isAILoading, setIsAILoading] = useState(false);
+  const [aiDraft, setAIDraft] = useState<{ content: string; agent: string } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -314,9 +320,29 @@ export function Memories() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-sans uppercase tracking-widest text-[#C9A45C]">
-                    Story / Description
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-sans uppercase tracking-widest text-[#C9A45C]">
+                      Story / Description
+                    </label>
+                    <button
+                      type="button"
+                      disabled={isAILoading || !title.trim()}
+                      onClick={async () => {
+                        if (!title.trim()) return;
+                        setIsAILoading(true);
+                        const result = await generateAIContent({
+                          intent: 'memory_caption',
+                          context: { title, location },
+                        });
+                        setAIDraft({ content: result.draft_content, agent: result.agent_name });
+                        setIsAILoading(false);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#C9A45C]/15 border border-[#C9A45C]/30 text-[#C9A45C] text-xs font-sans hover:bg-[#C9A45C]/25 transition-colors cursor-pointer disabled:opacity-40"
+                    >
+                      <Bot size={13} />
+                      {isAILoading ? 'Generating...' : 'AI Caption ✨'}
+                    </button>
+                  </div>
                   <textarea
                     rows={3}
                     className="w-full bg-[#1A1015]/80 border border-[#E98DA3]/20 rounded-xl p-3 text-[#FFFCF9] text-sm focus:outline-none focus:border-[#B83B5E] placeholder-[#9C8490]/50"
@@ -325,6 +351,19 @@ export function Memories() {
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
+
+                {/* Human Approval Modal for AI captions */}
+                <HumanApprovalModal
+                  isOpen={!!aiDraft}
+                  agentName={aiDraft?.agent ?? ''}
+                  intent="memory_caption"
+                  draftContent={aiDraft?.content ?? ''}
+                  onApprove={(approved) => {
+                    setDescription(approved);
+                    setAIDraft(null);
+                  }}
+                  onReject={() => setAIDraft(null)}
+                />
 
                 <Input
                   id="memory-tags"
