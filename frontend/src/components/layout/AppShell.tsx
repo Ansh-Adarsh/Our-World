@@ -4,9 +4,11 @@ import { Home, ImageIcon, Heart, MessageCircle, Menu } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
 import { Spinner } from '@/components/ui/Spinner';
+import { JourneyGuard } from '@/components/layout/JourneyGuard';
+import { isFullscreenPath, isJourneyActive } from '@/routes/journeyRoutes';
 
 export function AppShell() {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, onboardingStatus } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -31,13 +33,18 @@ export function AppShell() {
 
   if (!isAuthenticated) return null;
 
-  const isFullscreen = location.pathname === '/birthday';
+  // The dock is hidden for the cinematic birthday feature, for the journey
+  // routes, and for the whole of the guided journey — mid-journey there is
+  // nowhere else to go yet, so offering the navigation would only bounce.
+  const isFullscreen = isFullscreenPath(location.pathname) || isJourneyActive(onboardingStatus);
 
   return (
     <div className="flex-1 flex flex-col bg-our-world min-h-dvh relative">
       {/* Page content */}
       <main className={`flex-1 overflow-y-auto w-full ${isFullscreen ? 'pb-0' : 'pb-24'}`}>
-        <Outlet />
+        <JourneyGuard>
+          <Outlet />
+        </JourneyGuard>
       </main>
 
       {/* Floating Bottom Glass Dock */}

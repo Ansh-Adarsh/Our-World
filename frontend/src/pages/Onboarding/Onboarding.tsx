@@ -1,248 +1,698 @@
-import { useState } from 'react';
+/**
+ * Onboarding — the guided first entry into Our World.
+ *
+ * Two modes, decided by server state, never by a local flag:
+ *
+ *  • JOURNEY MODE (profiles.onboarding_status === 'not_started')
+ *    Welcome → Chapter One (the details the app needs) → Chapter Two (the
+ *    teasing game, where a wrong answer only ever earns a nudge) → the gateway,
+ *    which dims the room, opens the door, and hands over to the birthday
+ *    surprise. Progress is written to the database after every step, so a
+ *    refresh resumes on the same question.
+ *
+ *  • EDIT MODE (journey already complete)
+ *    Chapter One on its own, as the plain details form Home links to. A
+ *    returning user never sees the game, the gateway or the surprise again.
+ */
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FlowerAccent, FloatingPetals } from '@/components/flowers/FlowerAccent';
+import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-motion';
+import { Check, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { FlowerAccent } from '@/components/flowers/FlowerAccent';
+import { JourneyBackdrop } from '@/components/journey/JourneyBackdrop';
+import { HeartBurst } from '@/components/journey/JourneyParticles';
+import { SlideToContinue } from '@/components/journey/SlideToContinue';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/stores/authStore';
-import { saveOnboardingData } from '@/services/onboardingService';
+import { saveOnboardingData, saveJourneyAnswer } from '@/services/onboardingService';
 import { createCouple } from '@/services/api';
+import { JOURNEY_PATHS } from '@/routes/journeyRoutes';
+import { playUnlock } from '@/utils/sound';
+import {
+  JOURNEY_QUESTIONS,
+  SETUP_ONLY_QUESTIONS,
+  CHAPTER_LABELS,
+  JOURNEY_COPY,
+  validateJourneyAnswer,
+  type AnswerVerdict,
+  type JourneyQuestion,
+} from '@/content/journey';
+import type { Couple } from '@/types';
 
-interface OnboardingQuestion {
-  id: string;
-  title: string;
-  subtitle: string;
-  type: 'text' | 'date' | 'partner_details' | 'textarea';
-}
-
-const QUESTIONS: OnboardingQuestion[] = [
-  {
-    id: 'couple_name',
-    title: 'What shall we call our world?',
-    subtitle: 'Give your shared universe a title or pet name',
-    type: 'text',
-  },
-  {
-    id: 'anniversary_date',
-    title: 'When did your story begin?',
-    subtitle: 'Your anniversary date powers your "Days Together" live counter',
-    type: 'date',
-  },
-  {
-    id: 'partner_details',
-    title: 'Tell us about your partner',
-    subtitle: "Their name and birthday so we can build your cinematic countdown",
-    type: 'partner_details',
-  },
-  {
-    id: 'first_memory',
-    title: 'A favorite memory or promise',
-    subtitle: 'What is one thing that always makes you smile when you think of them?',
-    type: 'textarea',
-  },
-];
+type Stage = 'welcome' | 'questions' | 'gateway';
 
 export function Onboarding() {
   const navigate = useNavigate();
-  const { user, couple, loadCouple } = useAuthStore();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const { user, couple, loadCouple, onboardingStatus, onboardingStep, setJourneyStep, advanceJourney } =
+    useAuthStore();
 
-  // Form State
+  const isEditMode = onboardingStatus === 'completed';
+  const questions = useMemo<JourneyQuestion[]>(
+    () => (isEditMode ? SETUP_ONLY_QUESTIONS : JOURNEY_QUESTIONS),
+    [isEditMode],
+  );
+
+  // ─── Stage / position ───────────────────────────────────────────────────────
+  // Resume from the persisted step. Editing always starts at the top.
+  const resumeIndex = Math.min(Math.max(0, onboardingStep), questions.length - 1);
+  const [stage, setStage] = useState<Stage>(
+    isEditMode || resumeIndex > 0 ? 'questions' : 'welcome',
+  );
+  const [index, setIndex] = useState(isEditMode ? 0 : resumeIndex);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // ─── Chapter One answers ────────────────────────────────────────────────────
   const [coupleName, setCoupleName] = useState(couple?.couple_name || '');
   const [anniversaryDate, setAnniversaryDate] = useState(couple?.anniversary_date || '');
   const [partnerName, setPartnerName] = useState(couple?.partner_name || '');
   const [partnerBirthday, setPartnerBirthday] = useState(couple?.partner_birthday || '');
   const [favoriteMemory, setFavoriteMemory] = useState('');
 
-  const currentQ = QUESTIONS[currentStep];
-  const progressPercent = ((currentStep + 1) / QUESTIONS.length) * 100;
+  // Fill the form once the couple record arrives (it loads after first paint).
+  useEffect(() => {
+    if (!couple) return;
+    setCoupleName((v) => v || couple.couple_name || '');
+    setAnniversaryDate((v) => v || couple.anniversary_date || '');
+    setPartnerName((v) => v || couple.partner_name || '');
+    setPartnerBirthday((v) => v || couple.partner_birthday || '');
+  }, [couple]);
 
-  const handleNext = async () => {
-    if (currentStep < QUESTIONS.length - 1) {
-      setCurrentStep((prev) => prev + 1);
+  // ─── Chapter Two answers ────────────────────────────────────────────────────
+  const [choice, setChoice] = useState<number | null>(null);
+  const [guess, setGuess] = useState('');
+  const [verdict, setVerdict] = useState<AnswerVerdict | null>(null);
+  const [attempts, setAttempts] = useState(0);
+  const [burst, setBurst] = useState(0);
+  const [soundOn, setSoundOn] = useState(true);
+  // Animated imperatively so a wrong answer nudges the card without remounting
+  // it — remounting would throw away the text the user is still editing.
+  const shakeControls = useAnimation();
+
+  const question = questions[index];
+
+  /**
+   * What the riddles validate against: whatever is already on the couple record,
+   * overlaid with what the user has typed in this session. The overlay matters —
+   * it keeps "what name do I keep saved for you?" answerable even if the write to
+   * the couple row did not land.
+   */
+  const validationCouple = useMemo<Couple>(
+    () => ({
+      id: couple?.id ?? '',
+      couple_name: coupleName || couple?.couple_name || null,
+      anniversary_date: anniversaryDate || couple?.anniversary_date || null,
+      partner_name: partnerName || couple?.partner_name || null,
+      partner_birthday: partnerBirthday || couple?.partner_birthday || null,
+      partner_1_id: couple?.partner_1_id ?? null,
+      partner_2_id: couple?.partner_2_id ?? null,
+      created_at: couple?.created_at ?? '',
+      updated_at: couple?.updated_at ?? '',
+    }),
+    [couple, coupleName, anniversaryDate, partnerName, partnerBirthday],
+  );
+
+  // ─── Is the current answer good enough to move on? ──────────────────────────
+  const setupAnswerReady = (() => {
+    if (question.chapter !== 'setup') return false;
+    switch (question.kind) {
+      case 'text':
+        return coupleName.trim().length > 0;
+      case 'date':
+        return anniversaryDate.trim().length > 0;
+      case 'partner_details':
+        return partnerName.trim().length > 0;
+      case 'textarea':
+        return true; // optional — a blank promise is allowed
+      default:
+        return false;
+    }
+  })();
+
+  const unlocked = question.chapter === 'setup' ? setupAnswerReady : !!verdict?.correct;
+
+  // The bar leans forward as soon as the step is answerable, so the movement
+  // reads as reward rather than as a countdown.
+  const progress = ((index + (unlocked ? 1 : 0.35)) / questions.length) * 100;
+
+  // ─── Answering ──────────────────────────────────────────────────────────────
+  const judge = (rawValue: string) => {
+    const result = validateJourneyAnswer(question, rawValue, attempts, validationCouple);
+    setVerdict(result);
+
+    if (result.correct) {
+      setBurst((n) => n + 1);
+      playUnlock(soundOn);
     } else {
-      // Finish Onboarding
-      setIsSubmitting(true);
-      try {
-        let activeCoupleId = couple?.id;
-
-        // Auto-create couple if missing
-        if (!activeCoupleId && user) {
-          try {
-            const newCouple = await createCouple({ couple_name: coupleName, anniversary_date: anniversaryDate });
-            activeCoupleId = newCouple.couple_id;
-          } catch {
-            activeCoupleId = 'local-couple-id';
-          }
-        }
-
-        if (user && activeCoupleId) {
-          await saveOnboardingData({
-            coupleId: activeCoupleId,
-            userId: user.id,
-            coupleName,
-            anniversaryDate,
-            partnerName,
-            partnerBirthday,
-            answers: {
-              first_memory: favoriteMemory,
-            },
-          });
-        }
-
-        await loadCouple();
-        navigate('/home', { replace: true });
-      } catch (err) {
-        console.error('[Onboarding] Error submitting onboarding:', err);
-        navigate('/home', { replace: true });
-      } finally {
-        setIsSubmitting(false);
+      setAttempts((n) => n + 1);
+      if (!reduceMotion) {
+        void shakeControls.start({ x: [0, -9, 8, -5, 0], transition: { duration: 0.42 } });
       }
-    };
+    }
   };
 
-  const handleBack = () => {
-    if (currentStep > 0) setCurrentStep((prev) => prev - 1);
+  const selectChoice = (optionIndex: number) => {
+    setChoice(optionIndex);
+    judge(String(optionIndex));
   };
 
-  return (
-    <div className="relative min-h-dvh flex flex-col justify-between overflow-hidden bg-our-world px-6 py-8 sm:px-12 sm:py-12">
-      <FloatingPetals color="#E98DA3" />
+  const checkGuess = () => {
+    if (!guess.trim()) return;
+    judge(guess);
+  };
 
-      {/* Top Header & Progress Bar */}
-      <div className="relative z-10 w-full max-w-xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <span
-            className="text-sm font-serif text-[#E98DA3]"
+  // ─── Moving forward ─────────────────────────────────────────────────────────
+  const resetQuestionState = () => {
+    setChoice(null);
+    setGuess('');
+    setVerdict(null);
+    setAttempts(0);
+  };
+
+  /** Persist this question's answer, then take the next step. */
+  const goForward = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+
+    try {
+      const coupleId = await ensureCoupleId();
+
+      // Free-text answers are kept; the couple-record fields are written at the
+      // end of Chapter One so the birthday scene can greet by name.
+      if (user && coupleId) {
+        if (question.id === 'first_memory' && favoriteMemory.trim()) {
+          await saveJourneyAnswer(coupleId, user.id, 'first_memory', favoriteMemory);
+        } else if (question.chapter === 'riddles') {
+          const answer = question.kind === 'choice' ? question.options[choice ?? 0] ?? '' : guess;
+          await saveJourneyAnswer(coupleId, user.id, question.id, answer);
+        }
+      }
+
+      const isLastSetupQuestion =
+        question.chapter === 'setup' &&
+        (index + 1 >= questions.length || questions[index + 1].chapter !== 'setup');
+
+      if (isLastSetupQuestion) await saveChapterOne(coupleId);
+
+      // Finished the whole thing?
+      if (index + 1 >= questions.length) {
+        if (isEditMode) {
+          navigate(JOURNEY_PATHS.dashboard, { replace: true });
+        } else {
+          setStage('gateway');
+        }
+        return;
+      }
+
+      const next = index + 1;
+      setIndex(next);
+      resetQuestionState();
+      if (!isEditMode) await setJourneyStep(next);
+    } catch (err) {
+      console.error('[Onboarding] Could not save this step:', err);
+      // Never trap the user on a question because a write failed.
+      if (index + 1 >= questions.length) {
+        if (isEditMode) navigate(JOURNEY_PATHS.dashboard, { replace: true });
+        else setStage('gateway');
+      } else {
+        setIndex(index + 1);
+        resetQuestionState();
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const goBack = () => {
+    if (index === 0 || isSaving) return;
+    const previous = index - 1;
+    setIndex(previous);
+    resetQuestionState();
+    if (!isEditMode) void setJourneyStep(previous);
+  };
+
+  /** Make sure a couple row exists before anything is written against it. */
+  const ensureCoupleId = async (): Promise<string | null> => {
+    if (couple?.id) return couple.id;
+    if (!user) return null;
+    try {
+      const created = await createCouple({
+        couple_name: coupleName || undefined,
+        anniversary_date: anniversaryDate || undefined,
+      });
+      await loadCouple();
+      return created.couple_id;
+    } catch (err) {
+      console.warn('[Onboarding] Couple could not be created yet:', err);
+      return null;
+    }
+  };
+
+  const saveChapterOne = async (coupleId: string | null) => {
+    if (!user || !coupleId) return;
+    await saveOnboardingData({
+      coupleId,
+      userId: user.id,
+      coupleName,
+      anniversaryDate,
+      partnerName,
+      partnerBirthday,
+      answers: favoriteMemory.trim() ? { first_memory: favoriteMemory } : {},
+    });
+    await loadCouple();
+  };
+
+  // ─── The gateway: dim, unlock, hand over ────────────────────────────────────
+  useEffect(() => {
+    if (stage !== 'gateway') return;
+
+    const hold = reduceMotion ? 900 : 4200;
+    const timer = window.setTimeout(async () => {
+      await advanceJourney('questions_completed');
+      navigate(JOURNEY_PATHS.birthday, { replace: true });
+    }, hold);
+
+    return () => window.clearTimeout(timer);
+  }, [stage, reduceMotion, advanceJourney, navigate]);
+
+  if (stage === 'gateway') return <GatewayScene />;
+
+  // ─── Welcome ────────────────────────────────────────────────────────────────
+  if (stage === 'welcome') {
+    return (
+      <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-5 py-12 sm:px-8">
+        <JourneyBackdrop mood="calm" />
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="relative z-10 w-full max-w-lg text-center"
+        >
+          <p className="caption-gold mb-6">{JOURNEY_COPY.welcome.eyebrow}</p>
+
+          <FlowerAccent variant="rose" size={64} color="#E98DA3" opacity={0.35} className="mb-6 inline-block" />
+
+          <h1
+            className="mb-4 text-[2rem] font-light leading-tight text-[#FFFCF9] sm:text-[2.75rem]"
             style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
           >
-            OUR WORLD • ONBOARDING
+            {JOURNEY_COPY.welcome.title}
+          </h1>
+
+          <p
+            className="mb-6 text-lg text-[#E98DA3] sm:text-xl"
+            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+          >
+            {JOURNEY_COPY.welcome.subtitle}
+          </p>
+
+          <p className="mx-auto mb-10 max-w-md font-sans text-sm leading-relaxed text-[#9C8490]">
+            {JOURNEY_COPY.welcome.body}
+          </p>
+
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => setStage('questions')}
+            className="min-h-[52px] w-full max-w-xs tracking-widest uppercase sm:w-auto"
+            autoFocus
+          >
+            {JOURNEY_COPY.welcome.cta}
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ─── Questions ──────────────────────────────────────────────────────────────
+  return (
+    <div className="relative flex min-h-dvh flex-col justify-between overflow-hidden px-5 py-7 sm:px-8 sm:py-10">
+      <JourneyBackdrop mood="calm" />
+
+      {/* Header + progress */}
+      <div className="relative z-10 mx-auto w-full max-w-xl">
+        <div className="mb-3 flex items-baseline justify-between gap-3">
+          <span
+            className="text-xs text-[#E98DA3] sm:text-sm"
+            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", letterSpacing: '0.12em' }}
+          >
+            {isEditMode ? 'OUR WORLD · YOUR DETAILS' : CHAPTER_LABELS[question.chapter].toUpperCase()}
           </span>
-          <span className="text-xs font-sans text-[#9C8490]">
-            Step {currentStep + 1} of {QUESTIONS.length}
-          </span>
+
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="font-sans text-xs text-[#9C8490]">
+              {index + 1} / {questions.length}
+            </span>
+            {!isEditMode && (
+              <button
+                type="button"
+                onClick={() => setSoundOn((on) => !on)}
+                aria-pressed={soundOn}
+                aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-[#E98DA3]/15 text-[#9C8490] transition-colors hover:border-[#E98DA3]/40 hover:text-[#E98DA3]"
+              >
+                {soundOn ? (
+                  <Volume2 size={13} aria-hidden="true" />
+                ) : (
+                  <VolumeX size={13} aria-hidden="true" />
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Progress Bar Container */}
-        <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
           <motion.div
             className="h-full bg-gradient-to-r from-[#B83B5E] via-[#E98DA3] to-[#C9A45C]"
             initial={{ width: '0%' }}
-            animate={{ width: `${progressPercent}%` }}
+            animate={{ width: `${Math.min(100, progress)}%` }}
             transition={{ duration: 0.5, ease: 'easeInOut' }}
           />
         </div>
       </div>
 
-      {/* Center Question Card */}
-      <div className="relative z-10 w-full max-w-xl mx-auto my-auto py-8">
+      {/* Question card */}
+      <div className="relative z-10 mx-auto my-auto w-full max-w-xl py-7">
         <AnimatePresence mode="wait">
           <motion.div
-            key={currentQ.id}
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            key={question.id}
+            initial={{ opacity: 0, y: 22, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.98 }}
+            exit={{ opacity: 0, y: -18, scale: 0.98 }}
             transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="glass-card p-8 sm:p-10 relative overflow-hidden border border-[#E98DA3]/20"
           >
-            <FlowerAccent
-              variant="rose" size={48} color="#E98DA3" opacity={0.15}
-              className="absolute top-4 right-4"
-            />
-
-            <h2
-              className="text-3xl sm:text-4xl text-[#FFFCF9] font-light mb-2"
-              style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+            <motion.div
+              // A wrong answer nudges the card instead of scolding the user.
+              animate={shakeControls}
+              className="glass-card relative overflow-hidden border border-[#E98DA3]/20 p-6 sm:p-9"
             >
-              {currentQ.title}
-            </h2>
-            <p className="text-sm text-[#9C8490] font-sans mb-8 leading-relaxed">
-              {currentQ.subtitle}
-            </p>
+              <HeartBurst trigger={burst} />
 
-            {/* Render input by type */}
-            {currentQ.type === 'text' && (
-              <Input
-                id="couple-name-input"
-                label="Couple / Relationship Title"
-                placeholder="e.g. Maya & Alex's Sanctuary"
-                value={coupleName}
-                onChange={(e) => setCoupleName(e.target.value)}
-                autoFocus
+              <FlowerAccent
+                variant="rose"
+                size={44}
+                color="#E98DA3"
+                opacity={0.14}
+                className="absolute right-4 top-4"
               />
-            )}
 
-            {currentQ.type === 'date' && (
-              <Input
-                id="anniversary-date-input"
-                type="date"
-                label="Anniversary Date"
-                value={anniversaryDate}
-                onChange={(e) => setAnniversaryDate(e.target.value)}
-                autoFocus
-              />
-            )}
+              <h2
+                className="mb-2 pr-12 text-2xl font-light text-[#FFFCF9] sm:text-[2rem]"
+                style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+              >
+                {question.title}
+              </h2>
+              <p className="mb-7 font-sans text-sm leading-relaxed text-[#9C8490]">{question.subtitle}</p>
 
-            {currentQ.type === 'partner_details' && (
-              <div className="space-y-5">
+              {/* ── Chapter One fields ── */}
+              {question.chapter === 'setup' && question.kind === 'text' && (
                 <Input
-                  id="partner-name-input"
-                  label="Partner's Name or Nickname"
-                  placeholder="e.g. My Sunshine"
-                  value={partnerName}
-                  onChange={(e) => setPartnerName(e.target.value)}
+                  id="couple-name-input"
+                  label="Couple / Relationship Title"
+                  placeholder="e.g. Maya & Alex's Sanctuary"
+                  value={coupleName}
+                  onChange={(e) => setCoupleName(e.target.value)}
                   autoFocus
                 />
+              )}
+
+              {question.chapter === 'setup' && question.kind === 'date' && (
                 <Input
-                  id="partner-birthday-input"
+                  id="anniversary-date-input"
                   type="date"
-                  label="Partner's Birthday"
-                  value={partnerBirthday}
-                  onChange={(e) => setPartnerBirthday(e.target.value)}
-                />
-              </div>
-            )}
-
-            {currentQ.type === 'textarea' && (
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-sans uppercase tracking-widest text-[#C9A45C]">
-                  Your Special Memory / Promise
-                </label>
-                <textarea
-                  id="favorite-memory-input"
-                  rows={4}
-                  className="w-full bg-[#1A1015]/80 border border-[#E98DA3]/20 rounded-xl p-4 text-[#FFFCF9] text-sm focus:outline-none focus:border-[#B83B5E] transition-colors placeholder-[#9C8490]/50"
-                  placeholder="e.g. When we stayed up all night talking under the stars..."
-                  value={favoriteMemory}
-                  onChange={(e) => setFavoriteMemory(e.target.value)}
+                  label="Anniversary Date"
+                  value={anniversaryDate}
+                  onChange={(e) => setAnniversaryDate(e.target.value)}
                   autoFocus
                 />
-              </div>
-            )}
+              )}
+
+              {question.chapter === 'setup' && question.kind === 'partner_details' && (
+                <div className="space-y-5">
+                  <Input
+                    id="partner-name-input"
+                    label="Partner's Name or Nickname"
+                    placeholder="e.g. My Sunshine"
+                    value={partnerName}
+                    onChange={(e) => setPartnerName(e.target.value)}
+                    autoFocus
+                  />
+                  <Input
+                    id="partner-birthday-input"
+                    type="date"
+                    label="Partner's Birthday"
+                    value={partnerBirthday}
+                    onChange={(e) => setPartnerBirthday(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {question.chapter === 'setup' && question.kind === 'textarea' && (
+                <div className="flex flex-col gap-2">
+                  <label
+                    htmlFor="favorite-memory-input"
+                    className="font-sans text-xs uppercase tracking-widest text-[#C9A45C]"
+                  >
+                    Your Special Memory / Promise
+                  </label>
+                  <textarea
+                    id="favorite-memory-input"
+                    rows={4}
+                    className="w-full rounded-xl border border-[#E98DA3]/20 bg-[#1A1015]/80 p-4 text-sm text-[#FFFCF9] transition-colors placeholder-[#9C8490]/50 focus:border-[#B83B5E] focus:outline-none"
+                    placeholder="e.g. When we stayed up all night talking under the stars..."
+                    value={favoriteMemory}
+                    onChange={(e) => setFavoriteMemory(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              {/* ── Chapter Two: pick one ── */}
+              {question.chapter === 'riddles' && question.kind === 'choice' && (
+                <div className="flex flex-col gap-3" role="radiogroup" aria-label={question.title}>
+                  {question.options.map((option, optionIndex) => {
+                    const selected = choice === optionIndex;
+                    const isRight = selected && verdict?.correct;
+                    const isWrong = selected && verdict && !verdict.correct;
+
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => selectChoice(optionIndex)}
+                        disabled={!!verdict?.correct && !selected}
+                        className={[
+                          'flex items-center gap-3 rounded-xl border px-4 py-3.5 text-left',
+                          'font-sans text-sm transition-all duration-200 cursor-pointer',
+                          'disabled:cursor-not-allowed disabled:opacity-45',
+                          isRight
+                            ? 'border-[#C9A45C]/70 bg-[#C9A45C]/12 text-[#FFFCF9]'
+                            : isWrong
+                              ? 'border-[#B83B5E]/60 bg-[#B83B5E]/10 text-[#FFFCF9]'
+                              : 'border-[#E98DA3]/18 bg-white/[0.03] text-[#E4D5DB] hover:border-[#E98DA3]/45 hover:bg-white/[0.06]',
+                        ].join(' ')}
+                      >
+                        <span
+                          className={[
+                            'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px]',
+                            isRight
+                              ? 'border-[#C9A45C] bg-[#C9A45C] text-[#241B20]'
+                              : 'border-[#E98DA3]/35 text-[#9C8490]',
+                          ].join(' ')}
+                          aria-hidden="true"
+                        >
+                          {isRight ? <Check size={13} /> : String.fromCharCode(65 + optionIndex)}
+                        </span>
+                        <span>{option}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── Chapter Two: type it ── */}
+              {question.chapter === 'riddles' && question.kind === 'guess' && (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                  <div className="flex-1">
+                    <Input
+                      id={`guess-${question.id}`}
+                      label={question.placeholder}
+                      value={guess}
+                      onChange={(e) => {
+                        setGuess(e.target.value);
+                        if (verdict) setVerdict(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          checkGuess();
+                        }
+                      }}
+                      disabled={!!verdict?.correct}
+                      autoFocus
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={checkGuess}
+                    disabled={!guess.trim() || !!verdict?.correct}
+                    className="h-14 shrink-0 px-6"
+                  >
+                    {verdict?.correct ? 'Correct' : 'Check'}
+                  </Button>
+                </div>
+              )}
+
+              {/* ── Feedback: a nudge, or a warm reply ── */}
+              <AnimatePresence mode="wait">
+                {verdict && !verdict.correct && (
+                  <motion.p
+                    key={`hint-${attempts}`}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    role="status"
+                    className="mt-5 flex items-start gap-2 rounded-xl border border-[#E98DA3]/20 bg-[#B83B5E]/8 px-4 py-3 font-sans text-sm text-[#E98DA3]"
+                  >
+                    <Sparkles size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+                    <span>{verdict.hint || JOURNEY_COPY.wrongAnswerFallback}</span>
+                  </motion.p>
+                )}
+
+                {verdict?.correct && verdict.reward && (
+                  <motion.p
+                    key="reward"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    role="status"
+                    className="mt-5 rounded-xl border border-[#C9A45C]/25 bg-[#C9A45C]/8 px-4 py-3 text-center text-[15px] text-[#E8C97A]"
+                    style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+                  >
+                    {verdict.reward}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+            </motion.div>
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Bottom Action Controls */}
-      <div className="relative z-10 w-full max-w-xl mx-auto flex items-center justify-between">
-        <Button
-          variant="ghost"
-          onClick={handleBack}
-          disabled={currentStep === 0 || isSubmitting}
-          className="text-[#9C8490] hover:text-[#FFFCF9]"
-        >
-          Back
-        </Button>
+      {/* Controls */}
+      <div className="relative z-10 mx-auto w-full max-w-xl">
+        {isEditMode ? (
+          <div className="flex items-center justify-between gap-3">
+            <Button
+              variant="ghost"
+              onClick={goBack}
+              disabled={index === 0 || isSaving}
+              className="text-[#9C8490] hover:text-[#FFFCF9]"
+            >
+              Back
+            </Button>
+            <Button
+              variant="primary"
+              onClick={goForward}
+              isLoading={isSaving}
+              disabled={!unlocked}
+              className="min-w-[140px]"
+            >
+              {index === questions.length - 1 ? 'Save details' : 'Continue →'}
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <SlideToContinue
+              onComplete={goForward}
+              disabled={!unlocked || isSaving}
+              resetKey={question.id}
+              label={question.isGateway ? 'Slide to open the door' : 'Slide to continue'}
+              lockedLabel={
+                question.chapter === 'setup' ? 'Fill this in to continue' : 'Answer to unlock'
+              }
+            />
+            {index > 0 && (
+              <button
+                type="button"
+                onClick={goBack}
+                disabled={isSaving}
+                className="mx-auto cursor-pointer font-sans text-xs text-[#9C8490]/70 transition-colors hover:text-[#E98DA3] disabled:opacity-40"
+              >
+                ← one step back
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
-        <Button
-          variant="primary"
-          onClick={handleNext}
-          isLoading={isSubmitting}
-          className="min-w-[140px]"
+// ─── The gateway transition ────────────────────────────────────────────────────
+
+/**
+ * The door. Dims the room, splits two panels of light apart, and says the line
+ * before handing over to the birthday scene. Under reduced motion the same words
+ * appear without the travel.
+ */
+function GatewayScene() {
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden">
+      <JourneyBackdrop mood="night" dim petals={false} />
+
+      {/* Two halves of a door opening onto warm light */}
+      {!reduceMotion && (
+        <>
+          <motion.div
+            className="absolute inset-y-0 left-0 z-10 w-1/2 border-r border-[#C9A45C]/25 bg-gradient-to-r from-[#150D11] to-[#2A1520]"
+            initial={{ x: 0 }}
+            animate={{ x: '-100%' }}
+            transition={{ duration: 2.1, delay: 1.15, ease: [0.76, 0, 0.24, 1] }}
+          />
+          <motion.div
+            className="absolute inset-y-0 right-0 z-10 w-1/2 border-l border-[#C9A45C]/25 bg-gradient-to-l from-[#150D11] to-[#2A1520]"
+            initial={{ x: 0 }}
+            animate={{ x: '100%' }}
+            transition={{ duration: 2.1, delay: 1.15, ease: [0.76, 0, 0.24, 1] }}
+          />
+          {/* Light spilling through the opening */}
+          <motion.div
+            className="pointer-events-none absolute inset-y-0 left-1/2 z-[9] -translate-x-1/2 blur-2xl"
+            style={{
+              background: 'linear-gradient(90deg, transparent, rgba(232,201,122,0.5), transparent)',
+            }}
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: ['0%', '70%', '110%'], opacity: [0, 0.9, 0.25] }}
+            transition={{ duration: 2.6, delay: 1.15, ease: 'easeOut' }}
+          />
+        </>
+      )}
+
+      <div className="relative z-20 px-6 text-center">
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: [0, 1, 1, 0], y: 0 }}
+          transition={{ duration: 2.4, times: [0, 0.2, 0.72, 1], ease: 'easeInOut' }}
+          className="mx-auto max-w-md text-xl font-light text-[#E98DA3] sm:text-2xl"
+          style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
         >
-          {currentStep === QUESTIONS.length - 1 ? 'Enter Our World ❤️' : 'Continue →'}
-        </Button>
+          {JOURNEY_COPY.gateway.line1}
+        </motion.p>
+
+        <motion.h1
+          initial={{ opacity: 0, scale: 0.94, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 1.6, delay: reduceMotion ? 0.2 : 2.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="mt-6 text-[2rem] font-light leading-tight text-[#FFFCF9] sm:text-[3rem]"
+          style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+        >
+          {JOURNEY_COPY.gateway.line2}
+        </motion.h1>
       </div>
     </div>
   );

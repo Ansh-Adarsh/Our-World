@@ -1,9 +1,25 @@
 // ─── Core Entity Types ────────────────────────────────────────────────────────
 
+/**
+ * Onboarding journey state machine (profiles.onboarding_status).
+ * Server-authoritative — see supabase/migrations/005_onboarding_journey.sql.
+ */
+export type OnboardingStatus =
+  | 'not_started'
+  | 'questions_completed'
+  | 'birthday_completed'
+  | 'memories_completed'
+  | 'completed';
+
 export interface Profile {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  /** Absent until migration 005 is applied — treated as 'completed' when missing. */
+  onboarding_status?: OnboardingStatus;
+  /** Resume point inside the question game (0-based index). */
+  onboarding_step?: number;
+  onboarding_completed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -187,6 +203,8 @@ export interface AuthState {
   couple: Couple | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  onboardingStatus: OnboardingStatus;
+  onboardingStep: number;
 }
 
 // ─── API Response Types ────────────────────────────────────────────────────────

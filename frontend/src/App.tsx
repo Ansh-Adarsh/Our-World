@@ -14,6 +14,8 @@ import { Quizzes } from '@/pages/Quizzes/Quizzes';
 import { UnderstandingCorner } from '@/pages/Understanding/UnderstandingCorner';
 import { MoreMenu } from '@/pages/More/MoreMenu';
 import { BirthdayExperience } from '@/pages/Birthday/BirthdayExperience';
+import { BirthdaySurprise } from '@/pages/Journey/BirthdaySurprise';
+import { MemoriesIntro } from '@/pages/Journey/MemoriesIntro';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageTransition } from '@/components/layout/PageTransition';
 import { useAuthStore } from '@/stores/authStore';
@@ -50,7 +52,8 @@ export function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
 
-          {/* Protected — AppShell handles auth guard */}
+          {/* Protected — AppShell handles the auth guard, JourneyGuard the
+              onboarding-journey guard */}
           <Route element={<AppShell />}>
             <Route path="/home" element={<Home />} />
             <Route path="/onboarding" element={<Onboarding />} />
@@ -64,6 +67,10 @@ export function App() {
             <Route path="/understanding" element={<UnderstandingCorner />} />
             <Route path="/more" element={<MoreMenu />} />
             <Route path="/birthday" element={<BirthdayExperience />} />
+
+            {/* First-entry journey — reachable only at the matching status */}
+            <Route path="/journey/birthday" element={<BirthdaySurprise />} />
+            <Route path="/journey/memories" element={<MemoriesIntro />} />
           </Route>
 
           {/* Catch-all */}

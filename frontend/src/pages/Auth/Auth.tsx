@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { useAuthStore } from '@/stores/authStore';
+import { routeForStatus } from '@/routes/journeyRoutes';
 
 type AuthMode = 'sign-in' | 'sign-up';
 
@@ -16,7 +17,7 @@ type AuthMode = 'sign-in' | 'sign-up';
  */
 export function Auth() {
   const navigate = useNavigate();
-  const { signIn, signUp, isAuthenticated, isLoading } = useAuthStore();
+  const { signIn, signUp, isAuthenticated, isLoading, onboardingStatus } = useAuthStore();
 
   const [mode, setMode] = useState<AuthMode>('sign-in');
   const [email, setEmail] = useState('');
@@ -27,12 +28,17 @@ export function Auth() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Redirect if already authenticated
+  /*
+   * One redirect for everyone, and the destination comes from the profile row
+   * that has just been read — a brand-new account lands on the journey, someone
+   * returning lands on the dashboard. Nothing here needs to know which of the
+   * two just happened, which is why sign-in and sign-up share this path.
+   */
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      navigate('/home', { replace: true });
+      navigate(routeForStatus(onboardingStatus), { replace: true });
     }
-  }, [isAuthenticated, isLoading, navigate]);
+  }, [isAuthenticated, isLoading, onboardingStatus, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,10 +48,13 @@ export function Auth() {
 
     try {
       if (mode === 'sign-in') {
+        // No navigation here: the effect above sends them on once the session
+        // and the profile's journey status have both been hydrated.
         await signIn(email, password);
-        navigate('/home', { replace: true });
       } else {
         await signUp(email, password, displayName);
+        // With email confirmation on, signing up gives no session yet — so the
+        // journey starts at the first sign-in instead, from the same DB state.
         setSuccess(
           'Account created! Check your email to confirm, then sign in.'
         );
