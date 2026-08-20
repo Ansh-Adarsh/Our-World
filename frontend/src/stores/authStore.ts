@@ -3,9 +3,10 @@
  * Uses Zustand for lightweight, reactive state management.
  * Listens to Supabase auth state changes and keeps store in sync.
  *
- * Also holds the onboarding journey state. That state is read from the
- * `profiles` row on every load (server-authoritative), never from a local flag,
- * so the app can always tell a brand-new user from a returning one.
+ * Supported native Supabase Auth methods:
+ * 1. Email + Password (signInWithPassword, signUp, resetPasswordForEmail)
+ * 2. Phone + OTP (signInWithOtp, verifyOtp)
+ * 3. OAuth (Google, Facebook)
  */
 import { create } from 'zustand';
 import { supabase } from '@/services/supabase';
@@ -24,11 +25,14 @@ interface AuthStore {
   isAuthenticated: boolean;
 
   /**
+   * Flag indicating the user has just successfully authenticated
+   * during this session (used to show the post-login Welcome/Congratulations screen).
+   */
+  hasJustAuthenticated: boolean;
+
+  /**
    * Where this user is in the guided journey.
-   *
-   * Defaults to 'completed' so no unauthenticated or still-loading render can
-   * ever flash the journey at someone. It only becomes a journey value once a
-   * profile row has actually been read and says so.
+   * Defaults to 'completed' while resolving, derived strictly from `profiles.onboarding_status`.
    */
   onboardingStatus: OnboardingStatus;
   /** Resume point inside the question game. */
@@ -38,10 +42,15 @@ interface AuthStore {
   initialize: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName?: string) => Promise<void>;
+  signInWithOtp: (phone: string) => Promise<void>;
+  verifyOtp: (phone: string, token: string) => Promise<void>;
+  signInWithOAuth: (provider: 'google' | 'facebook') => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   loadCouple: () => Promise<void>;
   advanceJourney: (status: OnboardingStatus) => Promise<void>;
   setJourneyStep: (step: number) => Promise<void>;
+  setHasJustAuthenticated: (status: boolean) => void;
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
@@ -49,6 +58,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   couple: null,
   isLoading: true,
   isAuthenticated: false,
+  hasJustAuthenticated: false,
   onboardingStatus: 'completed',
   onboardingStep: 0,
 
@@ -60,22 +70,27 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const { data: { session } } = await supabase.auth.getSession();
 
     if (session?.user) {
-      await hydrateSession(session.user.id, session.user.email, set);
+      await hydrateSession(session.user.id, session.user.email, session.user.phone, set);
       await get().loadCouple();
     }
 
     set({ isLoading: false });
 
-    // Listen for future auth changes
-    supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Listen for auth state changes
+    supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-        await hydrateSession(session.user.id, session.user.email, set);
+        // If event is SIGNED_IN or USER_UPDATED, mark hasJustAuthenticated
+        if (event === 'SIGNED_IN') {
+          set({ hasJustAuthenticated: true });
+        }
+        await hydrateSession(session.user.id, session.user.email, session.user.phone, set);
         await get().loadCouple();
       } else {
         set({
           user: null,
           couple: null,
           isAuthenticated: false,
+          hasJustAuthenticated: false,
           onboardingStatus: 'completed',
           onboardingStep: 0,
         });
@@ -83,15 +98,16 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     });
   },
 
-  // ─── Sign In ───────────────────────────────────────────────────────────────
+  // ─── Email Sign In ─────────────────────────────────────────────────────────
   signIn: async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message);
-    // Journey state arrives via onAuthStateChange → hydrateSession, which is
-    // what decides whether this person sees the journey or the dashboard.
+    if (error) {
+      throw new Error(formatAuthError(error.message));
+    }
+    set({ hasJustAuthenticated: true });
   },
 
-  // ─── Sign Up ───────────────────────────────────────────────────────────────
+  // ─── Email Sign Up ─────────────────────────────────────────────────────────
   signUp: async (email: string, password: string, displayName?: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -101,20 +117,77 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       },
     });
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(formatAuthError(error.message));
+    }
 
-    // After signup, create couple via backend (uses service role, not client)
     if (data.session) {
+      set({ hasJustAuthenticated: true });
       try {
         await createCouple({ couple_name: undefined });
       } catch (coupleError) {
-        // Non-fatal — backend may not be running
-        console.warn('[AuthStore] Could not create couple:', coupleError);
+        console.warn('[AuthStore] Could not create couple record:', coupleError);
       }
-      // The signup trigger writes onboarding_status = 'not_started', so the
-      // route guard sends this user into the journey. Re-read to pick it up.
-      await hydrateSession(data.session.user.id, data.session.user.email, set);
+      await hydrateSession(data.session.user.id, data.session.user.email, data.session.user.phone, set);
       await get().loadCouple();
+    }
+  },
+
+  // ─── Phone Sign In / Send OTP ──────────────────────────────────────────────
+  signInWithOtp: async (phone: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      phone,
+    });
+    if (error) {
+      throw new Error(formatAuthError(error.message));
+    }
+  },
+
+  // ─── Phone Verify OTP ──────────────────────────────────────────────────────
+  verifyOtp: async (phone: string, token: string) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone,
+      token,
+      type: 'sms',
+    });
+
+    if (error) {
+      throw new Error(formatAuthError(error.message));
+    }
+
+    if (data.session) {
+      set({ hasJustAuthenticated: true });
+      try {
+        await createCouple({ couple_name: undefined });
+      } catch (coupleError) {
+        console.warn('[AuthStore] Could not create couple record:', coupleError);
+      }
+      await hydrateSession(data.session.user.id, data.session.user.email, data.session.user.phone, set);
+      await get().loadCouple();
+    }
+  },
+
+  // ─── OAuth Sign In (Google, Facebook) ──────────────────────────────────────
+  signInWithOAuth: async (provider: 'google' | 'facebook') => {
+    const redirectUrl = `${window.location.origin}/login`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: redirectUrl,
+      },
+    });
+    if (error) {
+      throw new Error(formatAuthError(error.message));
+    }
+  },
+
+  // ─── Reset Password ────────────────────────────────────────────────────────
+  resetPassword: async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    if (error) {
+      throw new Error(formatAuthError(error.message));
     }
   },
 
@@ -125,6 +198,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       user: null,
       couple: null,
       isAuthenticated: false,
+      hasJustAuthenticated: false,
       onboardingStatus: 'completed',
       onboardingStep: 0,
     });
@@ -132,37 +206,32 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 
   // ─── Load Couple ───────────────────────────────────────────────────────────
   loadCouple: async () => {
-    const { data, error } = await supabase
-      .from('couple_members')
-      .select('couple_id, couples(*)')
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('couple_members')
+        .select('couple_id, couples(*)')
+        .maybeSingle();
 
-    if (error || !data) {
-      // User may not have a couple yet — that's fine
+      if (error || !data) {
+        set({ couple: null });
+        return;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      set({ couple: (data as any).couples as Couple });
+    } catch {
       set({ couple: null });
-      return;
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    set({ couple: (data as any).couples as Couple });
   },
 
   // ─── Journey: advance one stage ─────────────────────────────────────────────
-  /**
-   * Move the journey forward. Writes to the database first, then updates the
-   * store. If the write fails the store still advances, so the experience never
-   * dead-ends — but the next page load will read the last persisted stage, not
-   * this optimistic one.
-   */
   advanceJourney: async (status: OnboardingStatus) => {
     const userId = get().user?.id;
 
     if (userId) {
       const persisted = await persistJourneyStatus(userId, status);
       if (!persisted) {
-        console.warn(
-          `[AuthStore] Journey advanced to "${status}" in memory only — the write did not land.`,
-        );
+        console.warn(`[AuthStore] Journey status "${status}" advanced in memory.`);
       }
     }
 
@@ -177,6 +246,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     const userId = get().user?.id;
     if (userId) await persistJourneyStep(userId, safeStep);
   },
+
+  setHasJustAuthenticated: (status: boolean) => {
+    set({ hasJustAuthenticated: status });
+  },
 }));
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -184,33 +257,90 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 type SetState = (partial: Partial<AuthStore>) => void;
 
 /**
- * Read the profile once and derive both the user and the journey state from it,
- * then commit them in a single update so no render ever sees an authenticated
- * user with a stale journey stage.
+ * Hydrate session user and profile.
  */
 async function hydrateSession(
   userId: string,
   email: string | undefined,
+  phone: string | undefined,
   set: SetState,
 ): Promise<void> {
-  const profile = await fetchProfile(userId);
+  const profile = await fetchProfile(userId, email, phone);
   const journey = normalizeJourneyState(profile);
 
   set({
     user: { id: userId, email, profile },
     isAuthenticated: true,
-    // No readable profile → treat as a returning user. Failing open keeps a
-    // database hiccup from trapping someone in onboarding forever.
     onboardingStatus: journey?.status ?? 'completed',
     onboardingStep: journey?.step ?? 0,
   });
 }
 
-async function fetchProfile(userId: string): Promise<Profile | null> {
-  const { data } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-  return (data as Profile | null) ?? null;
+/**
+ * Fetch profile with automatic fallback creation if freshly inserted user.
+ */
+async function fetchProfile(
+  userId: string,
+  email?: string,
+  phone?: string,
+): Promise<Profile | null> {
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (data) return data as Profile;
+
+    // Fallback: create profile if database trigger was delayed
+    const defaultName = email?.split('@')[0] || (phone ? `Partner ${phone.slice(-4)}` : 'My Love');
+    const { data: newProfile } = await supabase
+      .from('profiles')
+      .upsert({
+        id: userId,
+        display_name: defaultName,
+        onboarding_status: 'not_started',
+        onboarding_step: 0,
+      })
+      .select('*')
+      .maybeSingle();
+
+    return (newProfile as Profile | null) ?? null;
+  } catch (err) {
+    console.warn('[AuthStore] fetchProfile warning:', err);
+    return null;
+  }
+}
+
+/**
+ * Convert technical error messages to romantic, user-friendly copy.
+ */
+function formatAuthError(msg: string): string {
+  const lower = msg.toLowerCase();
+  if (lower.includes('invalid login credentials') || lower.includes('invalid_grant')) {
+    return "We couldn't sign you in with those details. Please double-check your email and password.";
+  }
+  if (lower.includes('user already registered') || lower.includes('already exists')) {
+    return 'An account with this email already exists. Try signing in instead.';
+  }
+  if (lower.includes('password should be at least')) {
+    return 'Please choose a password with at least 6 characters for safety.';
+  }
+  if (lower.includes('token has expired') || lower.includes('otp expired')) {
+    return 'That verification code has expired. Please request a fresh one.';
+  }
+  if (lower.includes('invalid token') || lower.includes('invalid otp')) {
+    return "That code doesn't look right. Please check the digits and try again.";
+  }
+  if (lower.includes('rate limit') || lower.includes('too many requests')) {
+    return 'Too many attempts. Please take a gentle breath and try again in a few moments.';
+  }
+  if (lower.includes('unsupported provider') || lower.includes('not enabled')) {
+    return 'This sign-in provider is not enabled yet in your Supabase project dashboard. Go to Authentication → Providers in your Supabase Dashboard to enable it.';
+  }
+  if (lower.includes('network') || lower.includes('fetch')) {
+    return "We're having trouble connecting right now. Please check your internet connection and try again.";
+  }
+  return msg || 'Unable to complete sign in. Please try again.';
 }

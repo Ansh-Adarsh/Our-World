@@ -1,6 +1,6 @@
 """
 Our World — FastAPI Backend
-Phase 1: Health check + couple creation endpoint only.
+Production API with Health check, couple initialization, and AI orchestration.
 Sensitive credentials stay here. Never in the frontend.
 """
 import logging

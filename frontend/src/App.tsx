@@ -20,6 +20,14 @@ import { AppShell } from '@/components/layout/AppShell';
 import { PageTransition } from '@/components/layout/PageTransition';
 import { useAuthStore } from '@/stores/authStore';
 import { Spinner } from '@/components/ui/Spinner';
+import { routeForStatus } from '@/routes/journeyRoutes';
+
+function RootRedirect() {
+  const { isAuthenticated, isLoading, onboardingStatus } = useAuthStore();
+  if (isLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <Navigate to={routeForStatus(onboardingStatus)} replace />;
+}
 
 export function App() {
   const { initialize, isLoading } = useAuthStore();
@@ -48,12 +56,13 @@ export function App() {
     <BrowserRouter>
       <PageTransition>
         <Routes>
-          {/* Public */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/auth" element={<Auth />} />
+          {/* Public / Entry Routes */}
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/login" element={<Auth />} />
+          <Route path="/auth" element={<Navigate to="/login" replace />} />
+          <Route path="/welcome" element={<Landing />} />
 
-          {/* Protected — AppShell handles the auth guard, JourneyGuard the
-              onboarding-journey guard */}
+          {/* Protected — AppShell handles auth guard, JourneyGuard the onboarding-journey guard */}
           <Route element={<AppShell />}>
             <Route path="/home" element={<Home />} />
             <Route path="/onboarding" element={<Onboarding />} />

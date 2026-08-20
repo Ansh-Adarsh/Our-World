@@ -100,7 +100,7 @@ export function Landing() {
             id="enter-world-btn"
             variant="primary"
             size="lg"
-            onClick={() => navigate('/auth')}
+            onClick={() => navigate('/login')}
             className="min-w-[200px] animate-pulse-glow font-serif tracking-widest uppercase text-base"
           >
             Enter ❤️

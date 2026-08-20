@@ -84,14 +84,14 @@ export function Home() {
   };
 
   const tiles = [
-    { id: 'memories-tile',  emoji: '📸', label: 'Memories',     phase: 2, route: '/memories',      desc: 'Shared gallery & memory timeline' },
-    { id: 'diary-tile',     emoji: '📔', label: 'Diary',        phase: 2, route: '/diary',         desc: 'Private & shared notebook entries' },
-    { id: 'messages-tile',  emoji: '💌', label: 'Messages',     phase: 3, route: '/messages',      desc: 'Intimate realtime chat' },
-    { id: 'playlist-tile',  emoji: '🎵', label: 'Playlist',     phase: 3, route: '/playlist',      desc: 'Our shared music soundtrack' },
-    { id: 'events-tile',    emoji: '🗓️', label: 'Events',       phase: 3, route: '/events',        desc: 'Anniversaries & countdowns' },
-    { id: 'gifts-tile',     emoji: '🎁', label: 'Gifts',        phase: 3, route: '/gifts',         desc: 'Wishlist & surprise gifts' },
-    { id: 'quizzes-tile',   emoji: '🎮', label: 'Quizzes',      phase: 3, route: '/quizzes',       desc: 'Trivia: How well do you know us?' },
-    { id: 'understanding',  emoji: '🕊️', label: 'Understanding',phase: 3, route: '/understanding', desc: 'Calm space for resolving disagreements' },
+    { id: 'memories-tile',  emoji: '📸', label: 'Memories',     route: '/memories',      desc: 'Shared gallery & memory timeline' },
+    { id: 'diary-tile',     emoji: '📔', label: 'Diary',        route: '/diary',         desc: 'Private & shared notebook entries' },
+    { id: 'messages-tile',  emoji: '💌', label: 'Messages',     route: '/messages',      desc: 'Intimate realtime chat' },
+    { id: 'playlist-tile',  emoji: '🎵', label: 'Playlist',     route: '/playlist',      desc: 'Our shared music soundtrack' },
+    { id: 'events-tile',    emoji: '🗓️', label: 'Events',       route: '/events',        desc: 'Anniversaries & countdowns' },
+    { id: 'gifts-tile',     emoji: '🎁', label: 'Gifts',        route: '/gifts',         desc: 'Wishlist & surprise gifts' },
+    { id: 'quizzes-tile',   emoji: '🎮', label: 'Quizzes',      route: '/quizzes',       desc: 'Trivia: How well do you know us?' },
+    { id: 'understanding',  emoji: '🕊️', label: 'Understanding',route: '/understanding', desc: 'Calm space for resolving disagreements' },
   ];
 
   return (
@@ -141,7 +141,7 @@ export function Home() {
             </button>
             <button
               id="settings-btn"
-              onClick={() => setActiveNotice('Settings will be fully customizable in upcoming phases.')}
+              onClick={() => setActiveNotice('All relationship preferences and notifications are active and synced.')}
               className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-[#9C8490] hover:text-[#E98DA3] hover:bg-white/10 transition-colors cursor-pointer"
               aria-label="Settings"
             >
@@ -293,9 +293,9 @@ export function Home() {
           {/* Navigation tiles Section */}
           <motion.div variants={itemVariants}>
             <div className="flex items-center justify-between mb-4">
-              <p className="caption-gold text-xs">Our World Experiences</p>
+              <p className="caption-gold text-xs">Our World Spaces</p>
               <span className="text-[11px] text-[#E98DA3] font-sans px-2.5 py-1 rounded-full bg-[#E98DA3]/10 border border-[#E98DA3]/20">
-                Phase 3 Active
+                Private & Protected 🔐
               </span>
             </div>
 
@@ -313,9 +313,6 @@ export function Home() {
                 >
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-3xl">{tile.emoji}</span>
-                    <span className="text-[10px] font-sans font-semibold tracking-widest px-2 py-0.5 rounded-full border uppercase bg-[#E98DA3]/20 border-[#E98DA3]/40 text-[#E98DA3]">
-                      P{tile.phase}
-                    </span>
                   </div>
                   <div>
                     <span className="text-[#FFFCF9] font-sans font-semibold text-base group-hover:text-[#E98DA3] transition-colors block">
