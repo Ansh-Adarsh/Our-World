@@ -13,11 +13,13 @@ import { Gifts } from '@/pages/Gifts/Gifts';
 import { Quizzes } from '@/pages/Quizzes/Quizzes';
 import { UnderstandingCorner } from '@/pages/Understanding/UnderstandingCorner';
 import { MoreMenu } from '@/pages/More/MoreMenu';
+import { Settings } from '@/pages/Settings/Settings';
 import { BirthdayExperience } from '@/pages/Birthday/BirthdayExperience';
 import { BirthdaySurprise } from '@/pages/Journey/BirthdaySurprise';
 import { MemoriesIntro } from '@/pages/Journey/MemoriesIntro';
 import { AppShell } from '@/components/layout/AppShell';
 import { PageTransition } from '@/components/layout/PageTransition';
+import { ToastContainer } from '@/components/ui/Toast';
 import { useAuthStore } from '@/stores/authStore';
 import { Spinner } from '@/components/ui/Spinner';
 import { routeForStatus } from '@/routes/journeyRoutes';
@@ -75,6 +77,7 @@ export function App() {
             <Route path="/quizzes" element={<Quizzes />} />
             <Route path="/understanding" element={<UnderstandingCorner />} />
             <Route path="/more" element={<MoreMenu />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/birthday" element={<BirthdayExperience />} />
 
             {/* First-entry journey — reachable only at the matching status */}
@@ -86,6 +89,7 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </PageTransition>
+      <ToastContainer />
     </BrowserRouter>
   );
 }

@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, isPlaceholder } from './supabase';
 import type { CoupleEvent, EventCategory } from '@/types';
 
 export interface CreateEventInput {
@@ -11,7 +11,18 @@ export interface CreateEventInput {
   isAnnual?: boolean;
 }
 
+export interface UpdateEventInput {
+  title: string;
+  description?: string;
+  eventDate: string;
+  category: EventCategory;
+  isAnnual?: boolean;
+}
+
 export async function fetchEvents(coupleId: string): Promise<CoupleEvent[]> {
+  if (isPlaceholder) {
+    return getDemoEvents(coupleId);
+  }
   try {
     const { data, error } = await supabase
       .from('events')
@@ -70,6 +81,63 @@ export async function createEvent(input: CreateEventInput): Promise<CoupleEvent 
   } catch (err) {
     console.error('[EventsService] Error creating event:', err);
     return null;
+  }
+}
+
+export async function updateEvent(
+  eventId: string,
+  input: UpdateEventInput,
+  coupleId: string
+): Promise<CoupleEvent | null> {
+  const { title, description, eventDate, category, isAnnual = false } = input;
+
+  try {
+    const { data, error } = await supabase
+      .from('events')
+      .update({
+        title,
+        description: description || null,
+        event_date: eventDate,
+        category,
+        is_annual: isAnnual,
+      })
+      .eq('id', eventId)
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.warn('[EventsService] Update note:', error?.message);
+      return {
+        id: eventId,
+        couple_id: coupleId,
+        author_id: 'current-user',
+        title,
+        description: description || null,
+        event_date: eventDate,
+        category,
+        is_annual: isAnnual,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    return data as CoupleEvent;
+  } catch (err) {
+    console.error('[EventsService] Error updating event:', err);
+    return null;
+  }
+}
+
+export async function deleteEvent(eventId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('events').delete().eq('id', eventId);
+    if (error) {
+      console.warn('[EventsService] Delete DB note:', error.message);
+    }
+    return true;
+  } catch (err) {
+    console.error('[EventsService] Error deleting event:', err);
+    return false;
   }
 }
 

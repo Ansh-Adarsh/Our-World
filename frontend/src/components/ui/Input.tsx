@@ -28,7 +28,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               'transition-all duration-200',
               error
                 ? 'border-red-400/60 focus:border-red-400'
-                : 'border-[#E98DA3]/20 focus:border-[#B83B5E]/60',
+                : 'border-[#F4B8C9]/25 focus:border-[#F4B8C9] focus:ring-1 focus:ring-[#F4B8C9]/30',
               'focus:bg-white/10',
               className,
             ].join(' ')}
@@ -45,7 +45,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               'absolute left-4 font-sans pointer-events-none select-none',
               'transition-all duration-200 ease-out',
               focused || hasValue || props.value
-                ? 'top-1.5 text-[11px] font-medium text-[#E98DA3]/80 tracking-wide'
+                ? 'top-1.5 text-[11px] font-medium text-[#F4B8C9] tracking-wide'
                 : 'top-4 text-sm font-normal text-[#9C8490]',
             ].join(' ')}
           >

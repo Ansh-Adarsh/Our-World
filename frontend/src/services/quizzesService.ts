@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, isPlaceholder } from './supabase';
 import type { Quiz, QuizAnswer } from '@/types';
 
 export interface CreateQuizInput {
@@ -14,6 +14,9 @@ export interface CreateQuizInput {
 }
 
 export async function fetchQuizzes(coupleId: string): Promise<Quiz[]> {
+  if (isPlaceholder) {
+    return getDemoQuizzes(coupleId);
+  }
   try {
     const { data: quizData, error: quizError } = await supabase
       .from('quizzes')

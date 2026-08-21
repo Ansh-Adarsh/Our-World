@@ -1,4 +1,5 @@
-import { supabase } from './supabase';
+import { supabase, isPlaceholder } from './supabase';
+import { getSignedUrl, deleteAudioFile } from './storage';
 import type { PlaylistSong } from '@/types';
 
 export interface CreateSongInput {
@@ -7,10 +8,22 @@ export interface CreateSongInput {
   title: string;
   artist: string;
   linkUrl?: string;
+  storagePath?: string;
+  note?: string;
+}
+
+export interface UpdateSongInput {
+  title: string;
+  artist: string;
+  linkUrl?: string;
+  storagePath?: string;
   note?: string;
 }
 
 export async function fetchPlaylistSongs(coupleId: string): Promise<PlaylistSong[]> {
+  if (isPlaceholder) {
+    return getDemoSongs(coupleId);
+  }
   try {
     const { data, error } = await supabase
       .from('playlist_songs')
@@ -23,7 +36,25 @@ export async function fetchPlaylistSongs(coupleId: string): Promise<PlaylistSong
       return getDemoSongs(coupleId);
     }
 
-    return (data as PlaylistSong[]).length > 0 ? (data as PlaylistSong[]) : getDemoSongs(coupleId);
+    const rawSongs = data as PlaylistSong[];
+    const songsWithUrls: PlaylistSong[] = await Promise.all(
+      rawSongs.map(async (song) => {
+        let audioUrl: string | undefined = undefined;
+        if (song.storage_path) {
+          const signed = await getSignedUrl('playlist-audio', song.storage_path, 7200);
+          audioUrl = signed || undefined;
+        } else if (song.link_url && (song.link_url.endsWith('.mp3') || song.link_url.endsWith('.wav') || song.link_url.endsWith('.m4a') || song.link_url.endsWith('.ogg'))) {
+          audioUrl = song.link_url;
+        }
+
+        return {
+          ...song,
+          audio_url: audioUrl,
+        };
+      })
+    );
+
+    return songsWithUrls.length > 0 ? songsWithUrls : getDemoSongs(coupleId);
   } catch (err) {
     console.error('[PlaylistService] Exception:', err);
     return getDemoSongs(coupleId);
@@ -31,7 +62,7 @@ export async function fetchPlaylistSongs(coupleId: string): Promise<PlaylistSong
 }
 
 export async function addPlaylistSong(input: CreateSongInput): Promise<PlaylistSong | null> {
-  const { coupleId, addedById, title, artist, linkUrl, note } = input;
+  const { coupleId, addedById, title, artist, linkUrl, storagePath, note } = input;
 
   try {
     const { data, error } = await supabase
@@ -42,10 +73,17 @@ export async function addPlaylistSong(input: CreateSongInput): Promise<PlaylistS
         title,
         artist,
         link_url: linkUrl || null,
+        storage_path: storagePath || null,
         note: note || null,
       })
       .select()
       .single();
+
+    let audioUrl: string | undefined = undefined;
+    if (storagePath) {
+      const signed = await getSignedUrl('playlist-audio', storagePath, 7200);
+      audioUrl = signed || (storagePath.startsWith('data:') ? storagePath : undefined);
+    }
 
     if (error || !data) {
       console.warn('[PlaylistService] Insert note:', error?.message);
@@ -56,15 +94,96 @@ export async function addPlaylistSong(input: CreateSongInput): Promise<PlaylistS
         title,
         artist,
         link_url: linkUrl || null,
+        storage_path: storagePath || null,
+        audio_url: audioUrl,
         note: note || null,
         created_at: new Date().toISOString(),
       };
     }
 
-    return data as PlaylistSong;
+    return {
+      ...(data as PlaylistSong),
+      audio_url: audioUrl,
+    };
   } catch (err) {
     console.error('[PlaylistService] Error adding song:', err);
     return null;
+  }
+}
+
+export async function updatePlaylistSong(
+  songId: string,
+  input: UpdateSongInput,
+  coupleId: string
+): Promise<PlaylistSong | null> {
+  const { title, artist, linkUrl, storagePath, note } = input;
+
+  try {
+    const { data, error } = await supabase
+      .from('playlist_songs')
+      .update({
+        title,
+        artist,
+        link_url: linkUrl || null,
+        storage_path: storagePath || null,
+        note: note || null,
+      })
+      .eq('id', songId)
+      .select()
+      .single();
+
+    let audioUrl: string | undefined = undefined;
+    if (storagePath) {
+      const signed = await getSignedUrl('playlist-audio', storagePath, 7200);
+      audioUrl = signed || (storagePath.startsWith('data:') ? storagePath : undefined);
+    }
+
+    if (error || !data) {
+      console.warn('[PlaylistService] Update note:', error?.message);
+      return {
+        id: songId,
+        couple_id: coupleId,
+        added_by_id: 'current-user',
+        title,
+        artist,
+        link_url: linkUrl || null,
+        storage_path: storagePath || null,
+        audio_url: audioUrl,
+        note: note || null,
+        created_at: new Date().toISOString(),
+      };
+    }
+
+    return {
+      ...(data as PlaylistSong),
+      audio_url: audioUrl,
+    };
+  } catch (err) {
+    console.error('[PlaylistService] Error updating song:', err);
+    return null;
+  }
+}
+
+export async function deletePlaylistSong(
+  songId: string,
+  storagePath?: string | null
+): Promise<boolean> {
+  try {
+    // 1. Delete associated audio file from storage
+    if (storagePath) {
+      await deleteAudioFile(storagePath);
+    }
+
+    // 2. Delete database record
+    const { error } = await supabase.from('playlist_songs').delete().eq('id', songId);
+    if (error) {
+      console.warn('[PlaylistService] Delete DB note:', error.message);
+    }
+
+    return true;
+  } catch (err) {
+    console.error('[PlaylistService] Error deleting song:', err);
+    return false;
   }
 }
 

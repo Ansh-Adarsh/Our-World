@@ -7,6 +7,7 @@ import { generateAIContent } from '@/services/aiService';
 import { HumanApprovalModal } from '@/components/ui/HumanApprovalModal';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Button } from '@/components/ui/Button';
+import { PageContainer } from '@/components/ui/PageContainer';
 import type { Quiz } from '@/types';
 
 export function Quizzes() {
@@ -118,7 +119,7 @@ export function Quizzes() {
   };
 
   return (
-    <div className="min-h-dvh bg-our-world px-5 py-8 sm:px-10 md:px-16 lg:px-20 sm:py-10 w-full flex flex-col">
+    <PageContainer>
       {/* Ambient background glow */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute top-10 right-1/4 w-96 h-96 rounded-full bg-[#E98DA3]/15 blur-3xl" />
@@ -127,8 +128,8 @@ export function Quizzes() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/5 relative z-10">
         <div>
-          <p className="caption-gold text-xs flex items-center gap-1.5 mb-1">
-            <HelpCircle size={14} className="text-[#C9A45C]" />
+          <p className="caption-gold text-xs flex items-center gap-1.5 mb-1 text-[#E8C97A]">
+            <FlowerAccent variant="sakura" size={16} color="#F4B8C9" opacity={0.9} />
             OUR WORLD • TRIVIA & QUIZZES
           </p>
           <h1
@@ -442,6 +443,6 @@ export function Quizzes() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </PageContainer>
   );
 }

@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, isPlaceholder } from './supabase';
 import type { ChatMessage, MessageType } from '@/types';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
@@ -10,6 +10,9 @@ export interface SendMessageInput {
 }
 
 export async function fetchMessages(coupleId: string): Promise<ChatMessage[]> {
+  if (isPlaceholder) {
+    return getDemoMessages(coupleId);
+  }
   try {
     const { data, error } = await supabase
       .from('messages')

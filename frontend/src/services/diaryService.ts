@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, isPlaceholder } from './supabase';
 import type { DiaryEntry, DiaryVisibility } from '@/types';
 
 export interface CreateDiaryEntryInput {
@@ -12,6 +12,9 @@ export interface CreateDiaryEntryInput {
 }
 
 export async function fetchDiaryEntries(coupleId: string, userId: string): Promise<DiaryEntry[]> {
+  if (isPlaceholder) {
+    return getDemoDiaryEntries(coupleId, userId);
+  }
   try {
     // ⚠️ Security Enforcement:
     // Supabase RLS enforces that PRIVATE entries are ONLY returned when author_id == auth.uid()

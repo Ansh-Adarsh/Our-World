@@ -6,7 +6,7 @@
 import { motion } from 'framer-motion';
 
 interface FlowerAccentProps {
-  variant?: 'rose' | 'petal' | 'bud' | 'leaf';
+  variant?: 'rose' | 'sakura' | 'peony' | 'petal' | 'bud' | 'leaf';
   size?: number;
   color?: string;
   className?: string;
@@ -16,45 +16,85 @@ interface FlowerAccentProps {
 }
 
 export function FlowerAccent({
-  variant = 'rose',
+  variant = 'sakura',
   size = 40,
-  color = '#E98DA3',
+  color = '#F4B8C9',
   className = '',
   animate = true,
   delay = 0,
-  opacity = 0.4,
+  opacity = 0.65,
 }: FlowerAccentProps) {
   const svgProps = { width: size, height: size, fill: color, opacity };
 
   const shapes: Record<string, React.ReactNode> = {
+    sakura: (
+      <svg width={size} height={size} viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" style={{ opacity }}>
+        <g transform="translate(25, 25)">
+          {[0, 72, 144, 216, 288].map((angle, i) => (
+            <path
+              key={i}
+              d="M 0 0 C -6 -14, -8 -22, -3 -24 C 0 -22, 0 -22, 3 -24 C 8 -22, 6 -14, 0 0"
+              fill={color}
+              transform={`rotate(${angle})`}
+            />
+          ))}
+          {/* Flower Center Stamen & Pistils */}
+          <circle cx="0" cy="0" r="4.5" fill="#E8C97A" opacity="0.9" />
+          <circle cx="0" cy="0" r="2" fill="#B83B5E" opacity="0.8" />
+        </g>
+      </svg>
+    ),
+
     rose: (
-      <svg {...svgProps} viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="20" cy="14" rx="6" ry="10" />
-        <ellipse cx="28" cy="20" rx="10" ry="6" transform="rotate(30 28 20)" />
-        <ellipse cx="26" cy="30" rx="6" ry="10" transform="rotate(60 26 30)" />
-        <ellipse cx="14" cy="30" rx="6" ry="10" transform="rotate(-60 14 30)" />
-        <ellipse cx="12" cy="20" rx="10" ry="6" transform="rotate(-30 12 20)" />
-        <circle cx="20" cy="20" r="5" opacity="0.8" />
+      <svg width={size} height={size} viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" style={{ opacity }}>
+        <g transform="translate(25, 25)">
+          <circle cx="0" cy="0" r="18" fill={color} opacity="0.25" />
+          <ellipse cx="0" cy="-6" rx="9" ry="12" fill={color} opacity="0.6" />
+          <ellipse cx="6" cy="2" rx="12" ry="8" fill={color} opacity="0.6" transform="rotate(45)" />
+          <ellipse cx="-4" cy="5" rx="11" ry="8" fill={color} opacity="0.7" transform="rotate(-35)" />
+          <circle cx="0" cy="0" r="6" fill="#B83B5E" opacity="0.8" />
+          <circle cx="0" cy="0" r="3" fill="#E8C97A" opacity="0.9" />
+        </g>
+      </svg>
+    ),
+
+    peony: (
+      <svg width={size} height={size} viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" style={{ opacity }}>
+        <g transform="translate(25, 25)">
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => (
+            <ellipse
+              key={i}
+              cx="0"
+              cy="-13"
+              rx="6"
+              ry="10"
+              fill={color}
+              opacity="0.45"
+              transform={`rotate(${angle})`}
+            />
+          ))}
+          <circle cx="0" cy="0" r="7" fill="#E8C97A" opacity="0.85" />
+        </g>
       </svg>
     ),
 
     petal: (
       <svg {...svgProps} viewBox="0 0 30 50" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="15" cy="25" rx="11" ry="22" />
+        <path d="M15,5 C5,15 2,30 15,45 C28,30 25,15 15,5 Z" fill={color} />
       </svg>
     ),
 
     bud: (
       <svg {...svgProps} viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">
-        <ellipse cx="15" cy="20" rx="8" ry="16" />
-        <ellipse cx="15" cy="26" rx="8" ry="10" opacity="0.5" />
+        <ellipse cx="15" cy="20" rx="8" ry="16" fill={color} />
+        <ellipse cx="15" cy="26" rx="8" ry="10" fill="#B83B5E" opacity="0.5" />
       </svg>
     ),
 
     leaf: (
       <svg {...svgProps} viewBox="0 0 30 50" xmlns="http://www.w3.org/2000/svg">
         <ellipse cx="15" cy="25" rx="10" ry="22" fill={color} opacity={opacity} />
-        <line x1="15" y1="5" x2="15" y2="45" stroke={color} strokeWidth="1" opacity="0.3" />
+        <line x1="15" y1="5" x2="15" y2="45" stroke="#E8C97A" strokeWidth="1" opacity="0.4" />
       </svg>
     ),
   };
@@ -112,20 +152,20 @@ interface FloatingPetalsProps {
   color?: string;
 }
 
-export function FloatingPetals({ color = '#E98DA3' }: FloatingPetalsProps) {
+export function FloatingPetals({ color = '#F4B8C9' }: FloatingPetalsProps) {
   return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden">
+    <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
       {PETALS.map((p, i) => (
         <motion.div
           key={i}
-          className="absolute bottom-0"
+          className="absolute bottom-0 pointer-events-none"
           style={{ left: p.left }}
           initial={{ y: '100vh', rotate: 0, opacity: 0 }}
           animate={{
             y: '-120vh',
-            rotate: [0, 25, -15, 30, 0],
-            x: [0, 20, -15, 25, 0],
-            opacity: [0, p.opacity, p.opacity * 0.7, 0],
+            rotate: [0, 45, -30, 60, 0],
+            x: [0, 25, -20, 30, 0],
+            opacity: [0, p.opacity, p.opacity * 0.85, 0],
           }}
           transition={{
             duration: p.duration,
@@ -136,11 +176,23 @@ export function FloatingPetals({ color = '#E98DA3' }: FloatingPetalsProps) {
         >
           <svg
             width={p.size}
-            height={p.size * 1.6}
-            viewBox="0 0 30 50"
+            height={p.size * 1.5}
+            viewBox="0 0 30 45"
             xmlns="http://www.w3.org/2000/svg"
           >
-            <ellipse cx="15" cy="25" rx="11" ry="22" fill={color} />
+            <path
+              d="M15,2 C7,12 3,25 15,42 C27,25 23,12 15,2 Z"
+              fill={color}
+              opacity={0.8}
+            />
+            {/* Delicate petal vein */}
+            <path
+              d="M15,8 Q15,24 15,36"
+              stroke="#FFF"
+              strokeWidth="0.8"
+              opacity="0.3"
+              fill="none"
+            />
           </svg>
         </motion.div>
       ))}

@@ -79,6 +79,12 @@ export function Onboarding() {
     setPartnerBirthday((v) => v || couple.partner_birthday || '');
   }, [couple]);
 
+  useEffect(() => {
+    if (isEditMode) {
+      setStage('questions');
+    }
+  }, [isEditMode]);
+
   // ─── Chapter Two answers ────────────────────────────────────────────────────
   const [choice, setChoice] = useState<number | null>(null);
   const [guess, setGuess] = useState('');
@@ -281,41 +287,44 @@ export function Onboarding() {
   // ─── Welcome ────────────────────────────────────────────────────────────────
   if (stage === 'welcome') {
     return (
-      <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-5 py-12 sm:px-8">
+      <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 sm:px-6 py-12 text-center w-full">
         <JourneyBackdrop mood="calm" />
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="relative z-10 w-full max-w-lg text-center"
+          className="relative z-10 w-full max-w-lg mx-auto flex flex-col items-center glass-card p-8 sm:p-12 rounded-3xl border border-[#F4B8C9]/25 bg-gradient-to-b from-[#2E2028]/90 to-[#241B20]/95 shadow-2xl"
         >
-          <p className="caption-gold mb-6">{JOURNEY_COPY.welcome.eyebrow}</p>
+          <FlowerAccent variant="sakura" size={64} color="#F4B8C9" opacity={0.8} className="mb-4 inline-block" />
 
-          <FlowerAccent variant="rose" size={64} color="#E98DA3" opacity={0.35} className="mb-6 inline-block" />
+          <p className="caption-gold mb-3 text-xs uppercase tracking-widest text-[#E8C97A] font-sans">
+            {JOURNEY_COPY.welcome.eyebrow}
+          </p>
 
           <h1
-            className="mb-4 text-[2rem] font-light leading-tight text-[#FFFCF9] sm:text-[2.75rem]"
+            className="mb-3 text-[2rem] font-light leading-tight text-[#FFFCF9] sm:text-[2.75rem]"
             style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
           >
             {JOURNEY_COPY.welcome.title}
           </h1>
 
           <p
-            className="mb-6 text-lg text-[#E98DA3] sm:text-xl"
+            className="mb-4 text-lg text-[#F4B8C9] sm:text-xl font-serif italic"
             style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
           >
             {JOURNEY_COPY.welcome.subtitle}
           </p>
 
-          <p className="mx-auto mb-10 max-w-md font-sans text-sm leading-relaxed text-[#9C8490]">
+          <p className="mx-auto mb-8 max-w-md font-sans text-xs sm:text-sm leading-relaxed text-[#9C8490]">
             {JOURNEY_COPY.welcome.body}
           </p>
 
           <Button
+            id="onboarding-ready-btn"
             variant="primary"
             size="lg"
             onClick={() => setStage('questions')}
-            className="min-h-[52px] w-full max-w-xs tracking-widest uppercase sm:w-auto"
+            className="min-h-[52px] w-full max-w-xs tracking-widest uppercase sm:w-auto shadow-lg shadow-[#B83B5E]/40"
             autoFocus
           >
             {JOURNEY_COPY.welcome.cta}
@@ -327,16 +336,17 @@ export function Onboarding() {
 
   // ─── Questions ──────────────────────────────────────────────────────────────
   return (
-    <div className="relative flex min-h-dvh flex-col justify-between overflow-hidden px-5 py-7 sm:px-8 sm:py-10">
+    <div className="relative flex min-h-dvh flex-col justify-between items-center w-full overflow-hidden px-4 sm:px-6 md:px-8 py-6 sm:py-10">
       <JourneyBackdrop mood="calm" />
 
       {/* Header + progress */}
-      <div className="relative z-10 mx-auto w-full max-w-xl">
+      <div className="relative z-10 w-full max-w-2xl mx-auto">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <span
-            className="text-xs text-[#E98DA3] sm:text-sm"
-            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif", letterSpacing: '0.12em' }}
+            className="text-xs text-[#F4B8C9] sm:text-sm font-serif tracking-widest uppercase flex items-center gap-2"
+            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
           >
+            <FlowerAccent variant="sakura" size={16} color="#F4B8C9" opacity={0.9} />
             {isEditMode ? 'OUR WORLD · YOUR DETAILS' : CHAPTER_LABELS[question.chapter].toUpperCase()}
           </span>
 
@@ -350,7 +360,7 @@ export function Onboarding() {
                 onClick={() => setSoundOn((on) => !on)}
                 aria-pressed={soundOn}
                 aria-label={soundOn ? 'Mute sound' : 'Unmute sound'}
-                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-[#E98DA3]/15 text-[#9C8490] transition-colors hover:border-[#E98DA3]/40 hover:text-[#E98DA3]"
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-[#F4B8C9]/20 text-[#9C8490] transition-colors hover:border-[#F4B8C9]/50 hover:text-[#F4B8C9]"
               >
                 {soundOn ? (
                   <Volume2 size={13} aria-hidden="true" />
@@ -364,7 +374,7 @@ export function Onboarding() {
 
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
           <motion.div
-            className="h-full bg-gradient-to-r from-[#B83B5E] via-[#E98DA3] to-[#C9A45C]"
+            className="h-full bg-gradient-to-r from-[#B83B5E] via-[#F4B8C9] to-[#E8C97A]"
             initial={{ width: '0%' }}
             animate={{ width: `${Math.min(100, progress)}%` }}
             transition={{ duration: 0.5, ease: 'easeInOut' }}
@@ -373,37 +383,40 @@ export function Onboarding() {
       </div>
 
       {/* Question card */}
-      <div className="relative z-10 mx-auto my-auto w-full max-w-xl py-7">
+      <div className="relative z-10 w-full max-w-2xl mx-auto my-auto py-6 flex justify-center">
         <AnimatePresence mode="wait">
           <motion.div
             key={question.id}
-            initial={{ opacity: 0, y: 22, scale: 0.98 }}
+            initial={{ opacity: 0, y: 18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -18, scale: 0.98 }}
-            transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+            transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="w-full"
           >
             <motion.div
               // A wrong answer nudges the card instead of scolding the user.
               animate={shakeControls}
-              className="glass-card relative overflow-hidden border border-[#E98DA3]/20 p-6 sm:p-9"
+              className="glass-card relative overflow-hidden border border-[#F4B8C9]/25 bg-gradient-to-b from-[#2E2028]/95 to-[#241B20]/95 p-8 sm:p-10 shadow-2xl rounded-3xl flex flex-col gap-6"
             >
               <HeartBurst trigger={burst} />
 
               <FlowerAccent
-                variant="rose"
-                size={44}
-                color="#E98DA3"
-                opacity={0.14}
-                className="absolute right-4 top-4"
+                variant="sakura"
+                size={52}
+                color="#F4B8C9"
+                opacity={0.35}
+                className="absolute right-5 top-5"
               />
 
-              <h2
-                className="mb-2 pr-12 text-2xl font-light text-[#FFFCF9] sm:text-[2rem]"
-                style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
-              >
-                {question.title}
-              </h2>
-              <p className="mb-7 font-sans text-sm leading-relaxed text-[#9C8490]">{question.subtitle}</p>
+              <div>
+                <h2
+                  className="mb-2 pr-14 text-2xl font-light text-[#FFFCF9] sm:text-[2.25rem] leading-tight"
+                  style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+                >
+                  {question.title}
+                </h2>
+                <p className="mb-8 font-sans text-sm sm:text-base leading-relaxed text-[#9C8490]">{question.subtitle}</p>
+              </div>
 
               {/* ── Chapter One fields ── */}
               {question.chapter === 'setup' && question.kind === 'text' && (
@@ -582,25 +595,25 @@ export function Onboarding() {
       </div>
 
       {/* Controls */}
-      <div className="relative z-10 mx-auto w-full max-w-xl">
+      <div className="relative z-10 mx-auto w-full max-w-2xl pb-6 sm:pb-8 pt-4">
         {isEditMode ? (
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-4">
             <Button
               variant="ghost"
               onClick={goBack}
               disabled={index === 0 || isSaving}
-              className="text-[#9C8490] hover:text-[#FFFCF9]"
+              className="text-[#9C8490] hover:text-[#F4B8C9] px-6 py-2.5 rounded-full border border-white/10"
             >
-              Back
+              ← Back
             </Button>
             <Button
               variant="primary"
               onClick={goForward}
               isLoading={isSaving}
               disabled={!unlocked}
-              className="min-w-[140px]"
+              className="min-w-[160px] px-8 py-3 rounded-full shadow-lg shadow-[#B83B5E]/40"
             >
-              {index === questions.length - 1 ? 'Save details' : 'Continue →'}
+              {index === questions.length - 1 ? 'Save Details ✨' : 'Continue →'}
             </Button>
           </div>
         ) : (
@@ -619,7 +632,7 @@ export function Onboarding() {
                 type="button"
                 onClick={goBack}
                 disabled={isSaving}
-                className="mx-auto cursor-pointer font-sans text-xs text-[#9C8490]/70 transition-colors hover:text-[#E98DA3] disabled:opacity-40"
+                className="mx-auto cursor-pointer font-sans text-xs text-[#9C8490]/70 transition-colors hover:text-[#F4B8C9] disabled:opacity-40"
               >
                 ← one step back
               </button>

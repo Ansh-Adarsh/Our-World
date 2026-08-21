@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, isPlaceholder } from './supabase';
 import type { GiftItem } from '@/types';
 
 export interface CreateGiftInput {
@@ -11,6 +11,9 @@ export interface CreateGiftInput {
 }
 
 export async function fetchGifts(coupleId: string): Promise<GiftItem[]> {
+  if (isPlaceholder) {
+    return getDemoGifts(coupleId);
+  }
   try {
     const { data, error } = await supabase
       .from('gifts')

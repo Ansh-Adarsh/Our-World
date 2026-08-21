@@ -20,13 +20,13 @@ const variantStyles: Record<ButtonVariant, string> = {
   ghost: [
     'bg-transparent text-[#E98DA3]',
     'border border-[#E98DA3]/30',
-    'hover:bg-[#E98DA3]/8 hover:border-[#E98DA3]/60',
+    'hover:bg-[#E98DA3]/10 hover:border-[#E98DA3]/60',
   ].join(' '),
 
   gold: [
     'bg-transparent text-[#C9A45C]',
     'border border-[#C9A45C]/40',
-    'hover:bg-[#C9A45C]/10 hover:border-[#C9A45C]/70',
+    'hover:bg-[#C9A45C]/15 hover:border-[#C9A45C]/70',
     'shadow-sm shadow-[#C9A45C]/15',
   ].join(' '),
 
@@ -38,9 +38,9 @@ const variantStyles: Record<ButtonVariant, string> = {
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'px-4 py-2 text-sm',
-  md: 'px-6 py-3 text-base',
-  lg: 'px-8 py-4 text-lg',
+  sm: 'px-3.5 py-1.5 text-xs',
+  md: 'px-5 py-2.5 text-sm',
+  lg: 'px-7 py-3.5 text-base',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -53,7 +53,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         transition={{ duration: 0.15, ease: 'easeOut' }}
         className={[
           'relative inline-flex items-center justify-center gap-2',
-          'font-sans font-medium tracking-wide',
+          'font-sans font-medium tracking-wide whitespace-nowrap shrink-0',
           'rounded-[0.75rem]',
           'transition-all duration-200',
           'cursor-pointer select-none',
@@ -70,7 +70,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
           </span>
         )}
-        <span className={isLoading ? 'opacity-0' : 'opacity-100'}>
+        <span className={`inline-flex items-center gap-2 ${isLoading ? 'opacity-0' : 'opacity-100'}`}>
           {children}
         </span>
       </motion.button>

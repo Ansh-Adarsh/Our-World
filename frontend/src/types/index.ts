@@ -130,8 +130,11 @@ export interface PlaylistSong {
   title: string;
   artist: string;
   link_url: string | null;
+  storage_path?: string | null;
+  audio_url?: string | null;
   note: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface GiftItem {

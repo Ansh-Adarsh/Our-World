@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
 import { Spinner } from '@/components/ui/Spinner';
 import { JourneyGuard } from '@/components/layout/JourneyGuard';
+import { FloatingPetals } from '@/components/flowers/FlowerAccent';
 import { isFullscreenPath, isJourneyActive } from '@/routes/journeyRoutes';
 
 export function AppShell() {
@@ -39,9 +40,12 @@ export function AppShell() {
   const isFullscreen = isFullscreenPath(location.pathname) || isJourneyActive(onboardingStatus);
 
   return (
-    <div className="flex-1 flex flex-col bg-our-world min-h-dvh relative">
+    <div className="flex-1 flex flex-col bg-our-world min-h-dvh relative overflow-x-hidden">
+      {/* Romantic Ambient Floating Petals */}
+      <FloatingPetals color="#F4B8C9" />
+
       {/* Page content */}
-      <main className={`flex-1 overflow-y-auto w-full ${isFullscreen ? 'pb-0' : 'pb-24'}`}>
+      <main className={`flex-1 overflow-y-auto w-full relative z-10 ${isFullscreen ? 'pb-0' : 'pb-24'}`}>
         <JourneyGuard>
           <Outlet />
         </JourneyGuard>

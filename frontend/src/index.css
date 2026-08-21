@@ -8,6 +8,8 @@
   /* Colors */
   --color-rose-deep: #B83B5E;
   --color-rose-soft: #E98DA3;
+  --color-pink-light: #F4B8C9;
+  --color-pink-soft: #FAD2E1;
   --color-cream: #FFF8F2;
   --color-warm-white: #FFFCF9;
   --color-wine: #5A2435;
@@ -117,12 +119,12 @@ h1, h2, h3, h4 {
 
 /* ─── Glass Card ───────────────────────────────────────────────────────────── */
 .glass-card {
-  background: rgba(255, 248, 242, 0.04);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(233, 141, 163, 0.12);
+  background: rgba(46, 32, 40, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(244, 184, 201, 0.16);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-card), 0 0 20px rgba(244, 184, 201, 0.04);
 }
 
 .glass-card-light {

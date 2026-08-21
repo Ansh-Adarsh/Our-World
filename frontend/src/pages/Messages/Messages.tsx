@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { fetchMessages, sendMessage, subscribeToMessages } from '@/services/messagesService';
 import { generateAIContent } from '@/services/aiService';
 import { HumanApprovalModal } from '@/components/ui/HumanApprovalModal';
+import { PageContainer } from '@/components/ui/PageContainer';
 import type { ChatMessage } from '@/types';
 
 export function Messages() {
@@ -82,7 +83,7 @@ export function Messages() {
   };
 
   return (
-    <div className="min-h-dvh bg-our-world px-5 py-6 sm:px-10 md:px-16 lg:px-20 w-full flex flex-col justify-between">
+    <PageContainer noBottomPad className="flex flex-col min-h-[calc(100dvh-6rem)] justify-between">
       {/* Background Glow */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute top-10 right-10 w-96 h-96 rounded-full bg-[#B83B5E]/8 blur-3xl" />
@@ -207,6 +208,6 @@ export function Messages() {
           </button>
         </div>
       </form>
-    </div>
+    </PageContainer>
   );
 }

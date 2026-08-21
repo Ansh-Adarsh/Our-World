@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gift, Plus, CheckCircle2, Circle, ExternalLink, Sparkles, X } from 'lucide-react';
+import { Plus, CheckCircle2, Circle, ExternalLink, Sparkles, X } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchGifts, addGift, toggleGiftGivenStatus } from '@/services/giftsService';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { PageContainer } from '@/components/ui/PageContainer';
 import type { GiftItem } from '@/types';
 
 export function Gifts() {
@@ -78,7 +79,7 @@ export function Gifts() {
   };
 
   return (
-    <div className="min-h-dvh bg-our-world px-5 py-8 sm:px-10 md:px-16 lg:px-20 sm:py-10 w-full flex flex-col">
+    <PageContainer>
       {/* Background Glow */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full bg-[#C9A45C]/10 blur-3xl" />
@@ -88,8 +89,8 @@ export function Gifts() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/5 relative z-10">
         <div>
-          <p className="caption-gold text-xs flex items-center gap-1.5 mb-1">
-            <Gift size={14} className="text-[#C9A45C]" />
+          <p className="caption-gold text-xs flex items-center gap-1.5 mb-1 text-[#E8C97A]">
+            <FlowerAccent variant="sakura" size={16} color="#F4B8C9" opacity={0.9} />
             OUR WORLD • GIFTS & WISHLIST
           </p>
           <h1
@@ -301,6 +302,6 @@ export function Gifts() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </PageContainer>
   );
 }

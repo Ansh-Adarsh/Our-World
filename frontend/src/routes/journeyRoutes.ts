@@ -47,7 +47,7 @@ export function routeForStatus(status: OnboardingStatus): string {
 
 /** Journey screens render full-bleed — no bottom dock over them. */
 export function isFullscreenPath(pathname: string): boolean {
-  return pathname === '/birthday' || pathname.startsWith('/journey/');
+  return pathname === '/birthday' || pathname.startsWith('/journey/') || pathname === '/onboarding';
 }
 
 /**

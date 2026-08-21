@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, isPlaceholder } from './supabase';
 import type { UnderstandingEntry, UnderstandingStatus } from '@/types';
 
 export interface CreateUnderstandingInput {
@@ -11,6 +11,9 @@ export interface CreateUnderstandingInput {
 }
 
 export async function fetchUnderstandingEntries(coupleId: string): Promise<UnderstandingEntry[]> {
+  if (isPlaceholder) {
+    return getDemoUnderstandingEntries(coupleId);
+  }
   try {
     const { data, error } = await supabase
       .from('understanding_entries')

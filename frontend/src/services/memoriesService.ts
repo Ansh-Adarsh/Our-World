@@ -1,5 +1,5 @@
-import { supabase } from './supabase';
-import { getSignedUrl } from './storage';
+import { supabase, isPlaceholder } from './supabase';
+import { getSignedUrl, deleteMemoryPhoto } from './storage';
 import type { Memory, MemoryPhoto } from '@/types';
 
 export interface CreateMemoryInput {
@@ -13,7 +13,19 @@ export interface CreateMemoryInput {
   photos?: { storagePath: string; caption?: string }[];
 }
 
+export interface UpdateMemoryInput {
+  title: string;
+  description?: string;
+  memoryDate: string;
+  location?: string;
+  tags?: string[];
+  photos?: { storagePath: string; caption?: string }[];
+}
+
 export async function fetchMemories(coupleId: string): Promise<Memory[]> {
+  if (isPlaceholder) {
+    return getDemoMemories(coupleId);
+  }
   try {
     const { data: memoriesData, error: memoriesError } = await supabase
       .from('memories')
@@ -100,7 +112,7 @@ export async function createMemory(input: CreateMemoryInput): Promise<Memory | n
           memory_id: localId,
           couple_id: coupleId,
           storage_path: p.storagePath,
-          signed_url: p.storagePath.startsWith('data:') ? p.storagePath : undefined,
+          signed_url: p.storagePath.startsWith('data:') || p.storagePath.startsWith('blob:') ? p.storagePath : undefined,
           caption: p.caption || null,
           created_at: new Date().toISOString(),
         })),
@@ -122,20 +134,125 @@ export async function createMemory(input: CreateMemoryInput): Promise<Memory | n
       await supabase.from('memory_photos').insert(photoRows);
     }
 
+    const photosWithUrls = await Promise.all(
+      photos.map(async (p, i) => {
+        const signedUrl = await getSignedUrl('memories-photos', p.storagePath);
+        return {
+          id: `${memoryId}-p${i}`,
+          memory_id: memoryId,
+          couple_id: coupleId,
+          storage_path: p.storagePath,
+          signed_url: signedUrl || (p.storagePath.startsWith('data:') ? p.storagePath : undefined),
+          caption: p.caption || null,
+          created_at: new Date().toISOString(),
+        };
+      })
+    );
+
     return {
       ...memoryData,
-      photos: photos.map((p, i) => ({
-        id: `${memoryId}-p${i}`,
-        memory_id: memoryId,
-        couple_id: coupleId,
-        storage_path: p.storagePath,
-        caption: p.caption || null,
-        created_at: new Date().toISOString(),
-      })),
+      photos: photosWithUrls,
     };
   } catch (err) {
     console.error('[MemoriesService] Error creating memory:', err);
     return null;
+  }
+}
+
+export async function updateMemory(
+  memoryId: string,
+  input: UpdateMemoryInput,
+  coupleId: string
+): Promise<Memory | null> {
+  const { title, description, memoryDate, location, tags = [], photos = [] } = input;
+
+  try {
+    const { data: updatedMemory, error } = await supabase
+      .from('memories')
+      .update({
+        title,
+        description: description || null,
+        memory_date: memoryDate,
+        location: location || null,
+        tags,
+      })
+      .eq('id', memoryId)
+      .select()
+      .single();
+
+    if (error || !updatedMemory) {
+      console.warn('[MemoriesService] Update note:', error?.message);
+    }
+
+    // Update photo rows: replace photos if provided
+    if (photos.length > 0) {
+      await supabase.from('memory_photos').delete().eq('memory_id', memoryId);
+      const photoRows = photos.map((p) => ({
+        memory_id: memoryId,
+        couple_id: coupleId,
+        storage_path: p.storagePath,
+        caption: p.caption || null,
+      }));
+      await supabase.from('memory_photos').insert(photoRows);
+    }
+
+    const photosWithUrls = await Promise.all(
+      photos.map(async (p, i) => {
+        const signedUrl = await getSignedUrl('memories-photos', p.storagePath);
+        return {
+          id: `${memoryId}-p${i}`,
+          memory_id: memoryId,
+          couple_id: coupleId,
+          storage_path: p.storagePath,
+          signed_url: signedUrl || (p.storagePath.startsWith('data:') ? p.storagePath : undefined),
+          caption: p.caption || null,
+          created_at: new Date().toISOString(),
+        };
+      })
+    );
+
+    return {
+      ...(updatedMemory || {
+        id: memoryId,
+        couple_id: coupleId,
+        author_id: 'current-user',
+        title,
+        description: description || null,
+        memory_date: memoryDate,
+        location: location || null,
+        tags,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      photos: photosWithUrls,
+    };
+  } catch (err) {
+    console.error('[MemoriesService] Error updating memory:', err);
+    return null;
+  }
+}
+
+export async function deleteMemory(
+  memoryId: string,
+  photoPaths: string[] = []
+): Promise<boolean> {
+  try {
+    // 1. Delete associated photos from storage
+    if (photoPaths.length > 0) {
+      await Promise.all(photoPaths.map((path) => deleteMemoryPhoto(path)));
+    }
+
+    // 2. Delete database record (cascades to memory_photos)
+    const { error } = await supabase.from('memories').delete().eq('id', memoryId);
+
+    if (error) {
+      console.warn('[MemoriesService] Delete DB note:', error.message);
+    }
+
+    return true;
+  } catch (err) {
+    console.error('[MemoriesService] Error deleting memory:', err);
+    return false;
   }
 }
 

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HeartHandshake, Plus, CheckCircle, Clock, Sparkles, X, ShieldAlert } from 'lucide-react';
+import { Plus, CheckCircle, Clock, Sparkles, X, ShieldAlert } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchUnderstandingEntries, createUnderstandingEntry, updateUnderstandingStatus } from '@/services/understandingService';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { PageContainer } from '@/components/ui/PageContainer';
 import type { UnderstandingEntry } from '@/types';
 
 export function UnderstandingCorner() {
@@ -72,7 +73,7 @@ export function UnderstandingCorner() {
   };
 
   return (
-    <div className="min-h-dvh bg-our-world px-5 py-8 sm:px-10 md:px-16 lg:px-20 sm:py-10 w-full flex flex-col">
+    <PageContainer>
       {/* Background Glow */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute top-1/4 left-1/3 w-96 h-96 rounded-full bg-[#5A2435]/25 blur-3xl" />
@@ -81,8 +82,8 @@ export function UnderstandingCorner() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/5 relative z-10">
         <div>
-          <p className="caption-gold text-xs flex items-center gap-1.5 mb-1">
-            <HeartHandshake size={14} className="text-[#C9A45C]" />
+          <p className="caption-gold text-xs flex items-center gap-1.5 mb-1 text-[#E8C97A]">
+            <FlowerAccent variant="sakura" size={16} color="#F4B8C9" opacity={0.9} />
             OUR WORLD • UNDERSTANDING CORNER
           </p>
           <h1
@@ -328,6 +329,6 @@ export function UnderstandingCorner() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </PageContainer>
   );
 }

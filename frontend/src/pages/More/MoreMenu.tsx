@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Music, Gift, HelpCircle, HeartHandshake, ArrowLeft, Sparkles } from 'lucide-react';
+import { PageContainer } from '@/components/ui/PageContainer';
+import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 
 export function MoreMenu() {
   const navigate = useNavigate();
@@ -57,12 +59,12 @@ export function MoreMenu() {
   ];
 
   return (
-    <div className="min-h-dvh bg-our-world px-5 py-8 sm:px-10 md:px-16 lg:px-20 sm:py-10 w-full flex flex-col">
+    <PageContainer>
       {/* Header */}
       <div className="flex items-center justify-between mb-8 pb-6 border-b border-white/5 relative z-10">
         <div>
-          <p className="caption-gold text-xs flex items-center gap-1.5 mb-1">
-            <Sparkles size={14} className="text-[#C9A45C]" />
+          <p className="caption-gold text-xs flex items-center gap-1.5 mb-1 text-[#E8C97A]">
+            <FlowerAccent variant="sakura" size={16} color="#F4B8C9" opacity={0.9} />
             OUR WORLD • EXPERIENCES HUB
           </p>
           <h1
@@ -83,40 +85,41 @@ export function MoreMenu() {
       </div>
 
       {/* Grid of features */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10 flex-1">
-        {features.map((feat) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
+        {features.map((feat, i) => (
           <motion.div
             key={feat.id}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: i * 0.05 }}
             whileHover={{ y: -4, scale: 1.01 }}
             onClick={() => navigate(feat.route)}
-            className="glass-card p-6 sm:p-8 rounded-2xl border border-white/10 relative overflow-hidden flex flex-col justify-between cursor-pointer group hover:border-[#E98DA3]/40 bg-gradient-to-b from-[#2E2028]/80 to-[#241B20]/90"
+            className="glass-card p-6 sm:p-7 rounded-2xl border border-white/10 relative overflow-hidden flex flex-col hover:border-[#E98DA3]/40 bg-gradient-to-b from-[#2E2028]/90 to-[#241B20]/95 transition-all shadow-lg cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
                 {feat.icon}
               </div>
               <span className="text-3xl">{feat.emoji}</span>
             </div>
 
-            <div>
-              <h2
-                className="text-2xl font-serif text-[#FFFCF9] group-hover:text-[#E98DA3] transition-colors mb-2"
-                style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
-              >
-                {feat.title}
-              </h2>
-              <p className="text-xs text-[#9C8490] font-sans leading-relaxed">
-                {feat.desc}
-              </p>
-            </div>
+            <h2
+              className="text-2xl font-serif text-[#FFFCF9] group-hover:text-[#E98DA3] transition-colors mb-2"
+              style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+            >
+              {feat.title}
+            </h2>
+            <p className="text-xs sm:text-sm text-[#9C8490] font-sans leading-relaxed mb-6">
+              {feat.desc}
+            </p>
 
-            <div className="pt-4 border-t border-white/5 flex items-center justify-between text-xs text-[#C9A45C] font-sans">
+            <div className="mt-auto pt-4 border-t border-white/10 flex items-center justify-between text-xs text-[#C9A45C] font-sans font-medium">
               <span>Open section</span>
-              <span>→</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
             </div>
           </motion.div>
         ))}
       </div>
-    </div>
+    </PageContainer>
   );
 }
