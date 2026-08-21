@@ -20,7 +20,7 @@ import { SceneLetter } from './scenes/SceneLetter';
 import { SceneMusic } from './scenes/SceneMusic';
 import { SceneFinal } from './scenes/SceneFinal';
 import { X, ChevronLeft, Eye } from 'lucide-react';
-import type { Surprise } from '@/types';
+import type { Surprise, SurpriseQuestion } from '@/types';
 
 type Step =
   | 'intro'
@@ -33,6 +33,42 @@ type Step =
   | 'letter'
   | 'music'
   | 'final';
+
+const DEFAULT_QUESTIONS: SurpriseQuestion[] = [
+  {
+    id: 'default-q-1',
+    surprise_id: 'default',
+    question_order: 1,
+    question_type: 'playful_choice',
+    question_text: 'Do you love me? ❤️',
+    yes_text: 'YES ❤️',
+    no_text: 'NO 😏',
+    no_button_behavior: 'escape',
+    reveal_message: 'I knew it! You are my whole world ❤️',
+  },
+  {
+    id: 'default-q-2',
+    surprise_id: 'default',
+    question_order: 2,
+    question_type: 'playful_choice',
+    question_text: 'Will you grow old with me? 💍',
+    yes_text: 'Always & Forever ✨',
+    no_text: 'Let me think... 😂',
+    no_button_behavior: 'escape',
+    reveal_message: 'Forever and a day by your side 🌸',
+  },
+  {
+    id: 'default-q-3',
+    surprise_id: 'default',
+    question_order: 3,
+    question_type: 'playful_choice',
+    question_text: 'Ready for your birthday surprise? 🎁',
+    yes_text: 'Yes, absolutely! 🎉',
+    no_text: 'Maybe... 👀',
+    no_button_behavior: 'escape',
+    reveal_message: 'Hold on tight, the candles are waiting! 🎂',
+  },
+];
 
 export function BirthdayExperience() {
   const navigate = useNavigate();
@@ -132,11 +168,23 @@ export function BirthdayExperience() {
     loadData();
   }, [couple?.id, surpriseIdParam, isPreview, user?.id]);
 
-  const hasQuestions = Boolean(surprise?.questions && surprise.questions.length > 0);
+  const activeQuestions =
+    surprise?.questions && surprise.questions.length > 0
+      ? surprise.questions
+      : DEFAULT_QUESTIONS;
 
-  const steps: Step[] = hasQuestions
-    ? ['intro', 'questions', 'reveal', 'cake', 'flowers', 'photos', 'timeline', 'letter', 'music', 'final']
-    : ['intro', 'reveal', 'cake', 'flowers', 'photos', 'timeline', 'letter', 'music', 'final'];
+  const steps: Step[] = [
+    'intro',
+    'questions',
+    'reveal',
+    'cake',
+    'flowers',
+    'photos',
+    'timeline',
+    'letter',
+    'music',
+    'final',
+  ];
 
   const currentIndex = steps.indexOf(currentStep);
 
@@ -180,12 +228,13 @@ export function BirthdayExperience() {
           <div />
         )}
 
-        {/* Step progress dots */}
+        {/* Step progress dots — Clickable to jump to any beat */}
         <div className="flex gap-1.5 bg-black/40 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md">
           {steps.map((s, idx) => (
             <button
               key={s}
               onClick={() => setCurrentStep(s)}
+              title={`Jump to ${s}`}
               className={`h-1.5 rounded-full transition-all cursor-pointer ${
                 idx === currentIndex ? 'w-5 bg-[#C9A45C]' : 'w-1.5 bg-white/20 hover:bg-white/40'
               }`}
@@ -218,7 +267,7 @@ export function BirthdayExperience() {
 
           {currentStep === 'questions' && (
             <SceneQuestions
-              questions={surprise?.questions || []}
+              questions={activeQuestions}
               partnerName={partnerName}
               onNext={goNext}
             />

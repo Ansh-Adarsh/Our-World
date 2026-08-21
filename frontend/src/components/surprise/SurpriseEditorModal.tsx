@@ -52,7 +52,8 @@ const OCCASIONS: { id: SurpriseOccasion; label: string; emoji: string }[] = [
 ];
 
 const BEHAVIORS: { id: NoButtonBehavior; label: string; desc: string }[] = [
-  { id: 'escape', label: 'Playful Escape', desc: 'No button runs away when hovered or clicked' },
+  { id: 'escape', label: 'Playful Escape (Recommended)', desc: 'No button dodges away when cursor or touch gets close' },
+  { id: 'normal', label: 'Normal Button', desc: 'Standard clickable button without escape physics' },
   { id: 'grow_yes', label: 'Grow Yes Button', desc: 'Yes button grows larger every time No is clicked' },
   { id: 'shake', label: 'Playful Shake', desc: 'Card shakes with an adorable loving tease' },
   { id: 'toast', label: 'Cute Toast Popup', desc: 'Shows a teasing romantic toast message' },

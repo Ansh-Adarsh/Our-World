@@ -9,10 +9,30 @@ export interface SendMessageInput {
   messageType?: MessageType;
 }
 
-export async function fetchMessages(coupleId: string): Promise<ChatMessage[]> {
-  if (isPlaceholder) {
-    return getDemoMessages(coupleId);
+function getLocalMessages(coupleId: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(`ourworld_chat_${coupleId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
   }
+}
+
+function saveLocalMessages(coupleId: string, list: ChatMessage[]) {
+  try {
+    localStorage.setItem(`ourworld_chat_${coupleId}`, JSON.stringify(list));
+  } catch (e) {
+    console.warn('[MessagesService] LocalStorage save note:', e);
+  }
+}
+
+export async function fetchMessages(coupleId: string): Promise<ChatMessage[]> {
+  if (isPlaceholder || !coupleId) {
+    return getLocalMessages(coupleId);
+  }
+
+  const localMsgs = getLocalMessages(coupleId);
+
   try {
     const { data, error } = await supabase
       .from('messages')
@@ -21,53 +41,82 @@ export async function fetchMessages(coupleId: string): Promise<ChatMessage[]> {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('[MessagesService] Fetch messages error:', error.message);
-      throw new Error(error.message);
+      console.warn('[MessagesService] Remote fetch notice, using local cache:', error.message);
+      return localMsgs;
     }
 
-    return (data as ChatMessage[]) || [];
+    if (!data || data.length === 0) {
+      return localMsgs;
+    }
+
+    const remoteMsgs = data as ChatMessage[];
+    const mergedMap = new Map<string, ChatMessage>();
+    localMsgs.forEach((m) => mergedMap.set(m.id, m));
+    remoteMsgs.forEach((m) => mergedMap.set(m.id, m));
+
+    const combined = Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    saveLocalMessages(coupleId, combined);
+    return combined;
   } catch (err) {
-    console.error('[MessagesService] Exception in fetchMessages:', err);
-    throw err;
+    console.warn('[MessagesService] Fetch exception, returning local cache:', err);
+    return localMsgs;
   }
 }
 
 export async function sendMessage(input: SendMessageInput): Promise<ChatMessage> {
   const { coupleId, senderId, content, messageType = 'text' } = input;
 
-  if (isPlaceholder) {
-    return {
-      id: crypto.randomUUID(),
-      couple_id: coupleId,
-      sender_id: senderId,
-      content,
-      message_type: messageType,
-      created_at: new Date().toISOString(),
-    };
+  const localId = crypto.randomUUID();
+  const localNewMsg: ChatMessage = {
+    id: localId,
+    couple_id: coupleId,
+    sender_id: senderId,
+    content,
+    message_type: messageType,
+    created_at: new Date().toISOString(),
+  };
+
+  if (isPlaceholder || !coupleId) {
+    const existing = getLocalMessages(coupleId);
+    saveLocalMessages(coupleId, [...existing, localNewMsg]);
+    return localNewMsg;
   }
 
-  const { data, error } = await supabase
-    .from('messages')
-    .insert({
-      couple_id: coupleId,
-      sender_id: senderId,
-      content,
-      message_type: messageType,
-    })
-    .select()
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        id: localId,
+        couple_id: coupleId,
+        sender_id: senderId,
+        content,
+        message_type: messageType,
+      })
+      .select()
+      .single();
 
-  if (error || !data) {
-    console.error('[MessagesService] Error sending message:', error?.message);
-    throw new Error(error?.message || 'Failed to send message');
+    if (error || !data) {
+      console.warn('[MessagesService] Remote insert notice, persisting locally:', error?.message);
+      const existing = getLocalMessages(coupleId);
+      saveLocalMessages(coupleId, [...existing, localNewMsg]);
+      return localNewMsg;
+    }
+
+    const createdRecord = data as ChatMessage;
+    const existing = getLocalMessages(coupleId);
+    saveLocalMessages(coupleId, [...existing.filter((m) => m.id !== localId), createdRecord]);
+    return createdRecord;
+  } catch (err) {
+    console.warn('[MessagesService] sendMessage exception, persisting locally:', err);
+    const existing = getLocalMessages(coupleId);
+    saveLocalMessages(coupleId, [...existing, localNewMsg]);
+    return localNewMsg;
   }
-
-  return data as ChatMessage;
 }
 
-/**
- * Mark incoming unread messages as read in Supabase
- */
 export async function markMessagesAsRead(coupleId: string): Promise<void> {
   if (isPlaceholder || !coupleId) return;
 
@@ -76,7 +125,6 @@ export async function markMessagesAsRead(coupleId: string): Promise<void> {
       target_couple_id: coupleId,
     });
     if (error) {
-      // Fallback direct update
       const { data: session } = await supabase.auth.getSession();
       const currentUserId = session.session?.user.id;
       if (currentUserId) {
@@ -93,41 +141,43 @@ export async function markMessagesAsRead(coupleId: string): Promise<void> {
   }
 }
 
-/**
- * Get count of unread incoming messages
- */
 export async function getUnreadMessageCount(
   coupleId: string,
   currentUserId: string
 ): Promise<number> {
-  if (isPlaceholder || !coupleId || !currentUserId) return 0;
+  if (isPlaceholder || !coupleId) {
+    const localMsgs = getLocalMessages(coupleId);
+    return localMsgs.filter((m) => m.sender_id !== currentUserId && !m.read_at).length;
+  }
 
   try {
     const { count, error } = await supabase
       .from('messages')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('couple_id', coupleId)
       .neq('sender_id', currentUserId)
       .is('read_at', null);
 
-    if (error) return 0;
-    return count || 0;
+    if (error) {
+      const localMsgs = getLocalMessages(coupleId);
+      return localMsgs.filter((m) => m.sender_id !== currentUserId && !m.read_at).length;
+    }
+
+    return count ?? 0;
   } catch {
     return 0;
   }
 }
 
-/**
- * Subscribe to realtime incoming messages and updates for the shared world
- */
 export function subscribeToMessages(
   coupleId: string,
-  onNewMessage: (msg: ChatMessage) => void,
-  onUpdateMessage?: (msg: ChatMessage) => void
-): RealtimeChannel {
-  const channel = supabase.channel(`couple-messages-${coupleId}`);
+  onNewMessage: (message: ChatMessage) => void,
+  onUpdateMessage?: (message: ChatMessage) => void
+): RealtimeChannel | null {
+  if (isPlaceholder || !coupleId) return null;
 
-  channel
+  return supabase
+    .channel(`couple-chat-${coupleId}`)
     .on(
       'postgres_changes',
       {
@@ -137,9 +187,10 @@ export function subscribeToMessages(
         filter: `couple_id=eq.${coupleId}`,
       },
       (payload) => {
-        if (payload.new) {
-          onNewMessage(payload.new as ChatMessage);
-        }
+        const newMsg = payload.new as ChatMessage;
+        const existing = getLocalMessages(coupleId);
+        saveLocalMessages(coupleId, [...existing.filter((m) => m.id !== newMsg.id), newMsg]);
+        onNewMessage(newMsg);
       }
     )
     .on(
@@ -151,75 +202,42 @@ export function subscribeToMessages(
         filter: `couple_id=eq.${coupleId}`,
       },
       (payload) => {
-        if (payload.new && onUpdateMessage) {
-          onUpdateMessage(payload.new as ChatMessage);
-        }
+        const updatedMsg = payload.new as ChatMessage;
+        const existing = getLocalMessages(coupleId);
+        saveLocalMessages(
+          coupleId,
+          existing.map((m) => (m.id === updatedMsg.id ? updatedMsg : m))
+        );
+        if (onUpdateMessage) onUpdateMessage(updatedMsg);
       }
-    );
-
-  channel.subscribe();
-  return channel;
+    )
+    .subscribe();
 }
 
-/**
- * Realtime Presence tracking between the two partners
- */
 export function subscribeToPresence(
   coupleId: string,
-  user: { id: string; name: string },
-  onPartnerStatusChange: (isPartnerOnline: boolean) => void
-): RealtimeChannel {
-  const channel = supabase.channel(`couple-presence-${coupleId}`, {
-    config: {
-      presence: {
-        key: user.id,
-      },
-    },
+  currentUser: { id: string; name?: string } | string,
+  onPresenceChange: (isOnline: boolean) => void
+): RealtimeChannel | null {
+  if (isPlaceholder || !coupleId) return null;
+
+  const currentUserId = typeof currentUser === 'string' ? currentUser : currentUser.id;
+  const channel = supabase.channel(`presence-${coupleId}`, {
+    config: { presence: { key: currentUserId } },
   });
 
   channel
     .on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
-      const userIds = Object.keys(state);
-      const partnerOnline = userIds.some((id) => id !== user.id);
-      onPartnerStatusChange(partnerOnline);
+      const keys = Object.keys(state);
+      const hasOther = keys.some((k) => k !== currentUserId);
+      onPresenceChange(hasOther);
     })
-    .on('presence', { event: 'join' }, ({ key }) => {
-      if (key !== user.id) {
-        onPartnerStatusChange(true);
-      }
-    })
-    .on('presence', { event: 'leave' }, ({ key }) => {
-      if (key !== user.id) {
-        onPartnerStatusChange(false);
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ online_at: new Date().toISOString() });
       }
     });
 
-  channel.subscribe(async (status) => {
-    if (status === 'SUBSCRIBED') {
-      await channel.track({
-        online_at: new Date().toISOString(),
-        user_name: user.name,
-      });
-    }
-  });
-
   return channel;
-}
-
-function getDemoMessages(coupleId: string): ChatMessage[] {
-  const now = new Date();
-  const t1 = new Date(now.getTime() - 15 * 60 * 1000).toISOString();
-
-  return [
-    {
-      id: 'demo-msg-1',
-      couple_id: coupleId,
-      sender_id: 'partner-id',
-      content: 'Good morning my love! ❤️ Hope you have a wonderful day ahead.',
-      message_type: 'text',
-      created_at: t1,
-      read_at: null,
-    },
-  ];
 }

@@ -22,10 +22,30 @@ export interface UpdateMemoryInput {
   photos?: { storagePath: string; caption?: string }[];
 }
 
-export async function fetchMemories(coupleId: string): Promise<Memory[]> {
-  if (isPlaceholder) {
-    return getDemoMemories(coupleId);
+function getLocalMemories(coupleId: string): Memory[] {
+  try {
+    const raw = localStorage.getItem(`ourworld_memories_${coupleId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
   }
+}
+
+function saveLocalMemories(coupleId: string, list: Memory[]) {
+  try {
+    localStorage.setItem(`ourworld_memories_${coupleId}`, JSON.stringify(list));
+  } catch (e) {
+    console.warn('[MemoriesService] LocalStorage save note:', e);
+  }
+}
+
+export async function fetchMemories(coupleId: string): Promise<Memory[]> {
+  if (isPlaceholder || !coupleId) {
+    return getLocalMemories(coupleId);
+  }
+
+  const localMems = getLocalMemories(coupleId);
+
   try {
     const { data: memoriesData, error: memoriesError } = await supabase
       .from('memories')
@@ -34,14 +54,16 @@ export async function fetchMemories(coupleId: string): Promise<Memory[]> {
       .order('memory_date', { ascending: false });
 
     if (memoriesError) {
-      console.error('[MemoriesService] Fetch memories error:', memoriesError.message);
-      throw new Error(memoriesError.message);
+      console.warn('[MemoriesService] Remote fetch notice, using local cache:', memoriesError.message);
+      return localMems;
     }
 
-    if (!memoriesData) return [];
+    if (!memoriesData || memoriesData.length === 0) {
+      return localMems;
+    }
 
     // Process signed URLs for photos
-    const memories: Memory[] = await Promise.all(
+    const remoteMemories: Memory[] = await Promise.all(
       memoriesData.map(async (m) => {
         const rawPhotos = (m.memory_photos as MemoryPhoto[]) || [];
         const photosWithUrls = await Promise.all(
@@ -49,7 +71,7 @@ export async function fetchMemories(coupleId: string): Promise<Memory[]> {
             const signedUrl = await getSignedUrl('memories-photos', p.storage_path);
             return {
               ...p,
-              signed_url: signedUrl || undefined,
+              signed_url: signedUrl || (p.storage_path.startsWith('data:') ? p.storage_path : undefined),
             };
           })
         );
@@ -70,233 +92,215 @@ export async function fetchMemories(coupleId: string): Promise<Memory[]> {
       })
     );
 
-    return memories;
+    // Merge remote with any un-synced local memories
+    const mergedMap = new Map<string, Memory>();
+    localMems.forEach((m) => mergedMap.set(m.id, m));
+    remoteMemories.forEach((m) => mergedMap.set(m.id, m));
+
+    const combined = Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.memory_date).getTime() - new Date(a.memory_date).getTime()
+    );
+
+    saveLocalMemories(coupleId, combined);
+    return combined;
   } catch (err) {
-    console.error('[MemoriesService] Exception in fetchMemories:', err);
-    throw err;
+    console.warn('[MemoriesService] Fetch exception, returning local cache:', err);
+    return localMems;
   }
 }
 
 export async function createMemory(input: CreateMemoryInput): Promise<Memory> {
   const { coupleId, userId, title, description, memoryDate, location, tags = [], photos = [] } = input;
 
-  if (isPlaceholder) {
-    const localId = crypto.randomUUID();
-    return {
-      id: localId,
-      couple_id: coupleId,
-      author_id: userId,
-      title,
-      description: description || null,
-      memory_date: memoryDate,
-      location: location || null,
-      tags,
-      photos: photos.map((p, i) => ({
-        id: `${localId}-p${i}`,
-        memory_id: localId,
+  const localId = crypto.randomUUID();
+  const fallbackPhotos: MemoryPhoto[] = photos.map((p, i) => ({
+    id: `${localId}-p${i}`,
+    memory_id: localId,
+    couple_id: coupleId,
+    storage_path: p.storagePath,
+    signed_url: p.storagePath.startsWith('data:') || p.storagePath.startsWith('http') ? p.storagePath : undefined,
+    caption: p.caption || null,
+    created_at: new Date().toISOString(),
+  }));
+
+  const localNewMem: Memory = {
+    id: localId,
+    couple_id: coupleId,
+    author_id: userId,
+    title,
+    description: description || null,
+    memory_date: memoryDate,
+    location: location || null,
+    tags,
+    photos: fallbackPhotos,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (isPlaceholder || !coupleId) {
+    const existing = getLocalMemories(coupleId);
+    saveLocalMemories(coupleId, [localNewMem, ...existing]);
+    return localNewMem;
+  }
+
+  try {
+    const { data: memoryData, error: memoryError } = await supabase
+      .from('memories')
+      .insert({
+        id: localId,
         couple_id: coupleId,
-        storage_path: p.storagePath,
-        signed_url: p.storagePath.startsWith('data:') || p.storagePath.startsWith('blob:') ? p.storagePath : undefined,
-        caption: p.caption || null,
-        created_at: new Date().toISOString(),
-      })),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-  }
+        author_id: userId,
+        title,
+        description: description || null,
+        memory_date: memoryDate,
+        location: location || null,
+        tags,
+      })
+      .select()
+      .single();
 
-  // 1. Insert memory row
-  const { data: memoryData, error: memoryError } = await supabase
-    .from('memories')
-    .insert({
-      couple_id: coupleId,
-      author_id: userId,
-      title,
-      description: description || null,
-      memory_date: memoryDate,
-      location: location || null,
-      tags,
-    })
-    .select()
-    .single();
-
-  if (memoryError || !memoryData) {
-    console.error('[MemoriesService] Create memory error:', memoryError?.message);
-    throw new Error(memoryError?.message || 'Failed to create memory');
-  }
-
-  // 2. Insert photo metadata rows
-  const memoryId = memoryData.id;
-  if (photos.length > 0) {
-    const photoRows = photos.map((p) => ({
-      memory_id: memoryId,
-      couple_id: coupleId,
-      storage_path: p.storagePath,
-      caption: p.caption || null,
-    }));
-
-    const { error: photoError } = await supabase.from('memory_photos').insert(photoRows);
-    if (photoError) {
-      console.error('[MemoriesService] Photo insert error:', photoError.message);
+    if (memoryError || !memoryData) {
+      console.warn('[MemoriesService] Remote insert notice, persisting locally:', memoryError?.message);
+      const existing = getLocalMemories(coupleId);
+      saveLocalMemories(coupleId, [localNewMem, ...existing]);
+      return localNewMem;
     }
-  }
 
-  const photosWithUrls = await Promise.all(
-    photos.map(async (p, i) => {
-      const signedUrl = await getSignedUrl('memories-photos', p.storagePath);
-      return {
-        id: `${memoryId}-p${i}`,
+    const memoryId = memoryData.id;
+    if (photos.length > 0) {
+      const photoRows = photos.map((p) => ({
         memory_id: memoryId,
         couple_id: coupleId,
         storage_path: p.storagePath,
-        signed_url: signedUrl || (p.storagePath.startsWith('data:') ? p.storagePath : undefined),
         caption: p.caption || null,
-        created_at: new Date().toISOString(),
-      };
-    })
-  );
+      }));
 
-  return {
-    ...memoryData,
-    photos: photosWithUrls,
-  };
+      const { error: photoError } = await supabase.from('memory_photos').insert(photoRows);
+      if (photoError) {
+        console.warn('[MemoriesService] Remote photo insert notice:', photoError.message);
+      }
+    }
+
+    const createdRecord: Memory = {
+      ...memoryData,
+      photos: fallbackPhotos,
+    };
+
+    const existing = getLocalMemories(coupleId);
+    saveLocalMemories(coupleId, [createdRecord, ...existing.filter((m) => m.id !== localId)]);
+    return createdRecord;
+  } catch (err) {
+    console.warn('[MemoriesService] createMemory exception, persisting locally:', err);
+    const existing = getLocalMemories(coupleId);
+    saveLocalMemories(coupleId, [localNewMem, ...existing]);
+    return localNewMem;
+  }
 }
 
 export async function updateMemory(
   memoryId: string,
   input: UpdateMemoryInput,
-  coupleId: string
+  coupleId?: string
 ): Promise<Memory> {
   const { title, description, memoryDate, location, tags = [], photos = [] } = input;
+  const targetCoupleId = coupleId || 'default-couple';
 
-  if (isPlaceholder) {
-    return {
-      id: memoryId,
-      couple_id: coupleId,
-      author_id: 'mock-user',
-      title,
-      description: description || null,
-      memory_date: memoryDate,
-      location: location || null,
-      tags,
-      photos: [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-  }
-
-  const { data: updatedMemory, error } = await supabase
-    .from('memories')
-    .update({
-      title,
-      description: description || null,
-      memory_date: memoryDate,
-      location: location || null,
-      tags,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', memoryId)
-    .select()
-    .single();
-
-  if (error || !updatedMemory) {
-    console.error('[MemoriesService] Update error:', error?.message);
-    throw new Error(error?.message || 'Failed to update memory');
-  }
-
-  // Update photo rows: replace photos if provided
-  if (photos.length > 0) {
-    await supabase.from('memory_photos').delete().eq('memory_id', memoryId);
-    const photoRows = photos.map((p) => ({
+  const existing = getLocalMemories(targetCoupleId);
+  const updatedLocal: Memory = {
+    id: memoryId,
+    couple_id: targetCoupleId,
+    author_id: 'user',
+    title,
+    description: description || null,
+    memory_date: memoryDate,
+    location: location || null,
+    tags,
+    photos: photos.map((p, i) => ({
+      id: `${memoryId}-p${i}`,
       memory_id: memoryId,
-      couple_id: coupleId,
+      couple_id: targetCoupleId,
       storage_path: p.storagePath,
+      signed_url: p.storagePath.startsWith('data:') || p.storagePath.startsWith('http') ? p.storagePath : undefined,
       caption: p.caption || null,
-    }));
-    await supabase.from('memory_photos').insert(photoRows);
-  }
+      created_at: new Date().toISOString(),
+    })),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 
-  const photosWithUrls = await Promise.all(
-    photos.map(async (p, i) => {
-      const signedUrl = await getSignedUrl('memories-photos', p.storagePath);
-      return {
-        id: `${memoryId}-p${i}`,
-        memory_id: memoryId,
-        couple_id: coupleId,
-        storage_path: p.storagePath,
-        signed_url: signedUrl || (p.storagePath.startsWith('data:') ? p.storagePath : undefined),
-        caption: p.caption || null,
-        created_at: new Date().toISOString(),
-      };
-    })
+  saveLocalMemories(
+    targetCoupleId,
+    existing.map((m) => (m.id === memoryId ? { ...m, ...updatedLocal } : m))
   );
 
-  return {
-    ...updatedMemory,
-    photos: photosWithUrls,
-  };
+  if (isPlaceholder || !coupleId) {
+    return updatedLocal;
+  }
+
+  try {
+    await supabase
+      .from('memories')
+      .update({
+        title,
+        description: description || null,
+        memory_date: memoryDate,
+        location: location || null,
+        tags,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', memoryId);
+
+    return updatedLocal;
+  } catch (err) {
+    console.warn('[MemoriesService] updateMemory notice:', err);
+    return updatedLocal;
+  }
 }
 
 export async function deleteMemory(
   memoryId: string,
-  photoPaths: string[] = []
+  coupleIdOrPhotos?: string | string[],
+  coupleId?: string
 ): Promise<boolean> {
-  if (isPlaceholder) return true;
-
-  // 1. Delete associated photos from storage
-  if (photoPaths.length > 0) {
-    await Promise.all(photoPaths.map((path) => deleteMemoryPhoto(path)));
+  // If photo paths passed
+  if (Array.isArray(coupleIdOrPhotos)) {
+    coupleIdOrPhotos.forEach((path) => {
+      void deleteMemoryPhoto(path);
+    });
   }
 
-  // 2. Delete database record (cascades to memory_photos)
-  const { error } = await supabase.from('memories').delete().eq('id', memoryId);
+  const targetCoupleId = typeof coupleIdOrPhotos === 'string' ? coupleIdOrPhotos : (coupleId || 'default-couple');
+  const existing = getLocalMemories(targetCoupleId);
+  saveLocalMemories(
+    targetCoupleId,
+    existing.filter((m) => m.id !== memoryId)
+  );
 
-  if (error) {
-    console.error('[MemoriesService] Delete DB error:', error.message);
-    throw new Error(error.message);
+  if (isPlaceholder) {
+    return true;
   }
 
-  return true;
+  try {
+    const { error } = await supabase.from('memories').delete().eq('id', memoryId);
+    if (error) {
+      console.warn('[MemoriesService] Remote delete notice:', error.message);
+    }
+    return true;
+  } catch (err) {
+    console.warn('[MemoriesService] deleteMemory exception:', err);
+    return true;
+  }
 }
 
-/**
- * Realtime subscription to memories table changes
- */
-export function subscribeToMemories(
-  coupleId: string,
-  onChange: () => void
-) {
+export function subscribeToMemories(coupleId: string, onUpdate: () => void) {
+  if (isPlaceholder || !coupleId) return null;
+
   return supabase
     .channel(`couple-memories-${coupleId}`)
     .on(
       'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'memories',
-        filter: `couple_id=eq.${coupleId}`,
-      },
-      () => {
-        onChange();
-      }
+      { event: '*', schema: 'public', table: 'memories', filter: `couple_id=eq.${coupleId}` },
+      () => onUpdate()
     )
     .subscribe();
-}
-
-function getDemoMemories(coupleId: string): Memory[] {
-  return [
-    {
-      id: 'demo-1',
-      couple_id: coupleId,
-      author_id: 'demo-user',
-      title: 'Our First Sunset Walk',
-      description: 'The sky turned shades of deep pink and lavender. We talked for hours by the water.',
-      memory_date: '2026-07-15',
-      location: 'Marine Drive',
-      tags: ['romantic', 'sunset', 'firsts'],
-      photos: [],
-      created_at: '2026-07-15T18:30:00Z',
-      updated_at: '2026-07-15T18:30:00Z',
-    },
-  ];
 }

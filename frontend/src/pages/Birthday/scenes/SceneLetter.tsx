@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Bot, Heart, Sparkles, RefreshCw } from 'lucide-react';
-import { generateAIContent } from '@/services/aiService';
+import { ArrowRight, Heart, Sparkles } from 'lucide-react';
 
 interface SceneLetterProps {
   partnerName: string;
@@ -10,29 +9,11 @@ interface SceneLetterProps {
 }
 
 export function SceneLetter({ partnerName, customMessage, onNext }: SceneLetterProps) {
-  const [letterText, setLetterText] = useState<string>(
+  const [letterText] = useState<string>(
     () =>
       customMessage ||
       `To ${partnerName || 'My Love'},\n\nOn this special day, I want to take a moment to tell you just how deeply grateful I am for your existence. Every quiet morning, shared smile, and midnight conversation with you adds a soft, golden brilliance to my life.\n\nYou make our little world feel whole, safe, and endlessly beautiful. Here is to celebrating your light today and walking hand in hand through all the chapters yet to come.\n\nWith all my love, always.`
   );
-  const [isAIGenerating, setIsAIGenerating] = useState(false);
-
-  const handleRegenerateAI = async () => {
-    setIsAIGenerating(true);
-    try {
-      const res = await generateAIContent({
-        intent: 'birthday_experience',
-        context: { partner_name: partnerName, milestone: 'a milestone birthday' },
-      });
-      if (res.draft_content) {
-        setLetterText(res.draft_content);
-      }
-    } catch (err) {
-      console.warn('AI letter generation error:', err);
-    } finally {
-      setIsAIGenerating(false);
-    }
-  };
 
   return (
     <div className="relative min-h-dvh flex flex-col items-center justify-between p-6 sm:p-10 text-center overflow-hidden select-none">
@@ -78,15 +59,9 @@ export function SceneLetter({ partnerName, customMessage, onNext }: SceneLetterP
             </span>
           </div>
 
-          <button
-            onClick={handleRegenerateAI}
-            disabled={isAIGenerating}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C9A45C]/15 border border-[#C9A45C]/30 text-[#C9A45C] text-xs font-sans hover:bg-[#C9A45C]/30 transition-colors cursor-pointer disabled:opacity-40"
-          >
-            <Bot size={13} />
-            <RefreshCw size={11} className={isAIGenerating ? 'animate-spin' : ''} />
-            <span>{isAIGenerating ? 'Writing...' : 'AI Re-write'}</span>
-          </button>
+          <span className="text-xs text-[#E8C97A] font-sans italic">
+            With love ❤️
+          </span>
         </div>
 
         <div className="prose text-sm sm:text-base text-[#FFF8F2] font-sans leading-relaxed whitespace-pre-wrap font-light max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">

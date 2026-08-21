@@ -229,7 +229,7 @@ export type SurpriseOccasion =
 
 export type SurpriseStatus = 'draft' | 'published';
 
-export type NoButtonBehavior = 'escape' | 'grow_yes' | 'shake' | 'toast';
+export type NoButtonBehavior = 'escape' | 'grow_yes' | 'shake' | 'toast' | 'normal';
 
 export interface SurpriseQuestion {
   id: string;

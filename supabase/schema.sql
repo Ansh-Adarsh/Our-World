@@ -71,33 +71,40 @@ CREATE TABLE IF NOT EXISTS public.couple_members (
 
 ALTER TABLE public.couple_members ENABLE ROW LEVEL SECURITY;
 
+-- Security Definer helper to completely eliminate RLS recursion
+CREATE OR REPLACE FUNCTION public.is_couple_member(target_couple_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.couple_members
+    WHERE couple_id = target_couple_id AND user_id = auth.uid()
+  );
+$$;
+
 DROP POLICY IF EXISTS "couple_members_select" ON public.couple_members;
 CREATE POLICY "couple_members_select"
   ON public.couple_members FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "couple_members_insert" ON public.couple_members;
+CREATE POLICY "couple_members_insert"
+  ON public.couple_members FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
 DROP POLICY IF EXISTS "couples_select_member" ON public.couples;
 CREATE POLICY "couples_select_member"
   ON public.couples FOR SELECT
-  USING (
-    id IN (
-      SELECT couple_id FROM public.couple_members WHERE user_id = auth.uid()
-    )
-  );
+  USING (public.is_couple_member(id));
 
 DROP POLICY IF EXISTS "couples_update_member" ON public.couples;
 CREATE POLICY "couples_update_member"
   ON public.couples FOR UPDATE
-  USING (
-    id IN (
-      SELECT couple_id FROM public.couple_members WHERE user_id = auth.uid()
-    )
-  )
-  WITH CHECK (
-    id IN (
-      SELECT couple_id FROM public.couple_members WHERE user_id = auth.uid()
-    )
-  );
+  USING (public.is_couple_member(id))
+  WITH CHECK (public.is_couple_member(id));
 
 -- ─── 4. ONBOARDING ANSWERS TABLE ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.onboarding_answers (

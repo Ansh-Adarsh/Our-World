@@ -19,10 +19,30 @@ export interface UpdateDiaryEntryInput {
   entryDate?: string;
 }
 
-export async function fetchDiaryEntries(coupleId: string, userId: string): Promise<DiaryEntry[]> {
-  if (isPlaceholder) {
-    return getDemoDiaryEntries(coupleId, userId);
+function getLocalDiary(coupleId: string): DiaryEntry[] {
+  try {
+    const raw = localStorage.getItem(`ourworld_diary_${coupleId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
   }
+}
+
+function saveLocalDiary(coupleId: string, list: DiaryEntry[]) {
+  try {
+    localStorage.setItem(`ourworld_diary_${coupleId}`, JSON.stringify(list));
+  } catch (e) {
+    console.warn('[DiaryService] LocalStorage save note:', e);
+  }
+}
+
+export async function fetchDiaryEntries(coupleId: string, _userId?: string): Promise<DiaryEntry[]> {
+  if (isPlaceholder || !coupleId) {
+    return getLocalDiary(coupleId);
+  }
+
+  const localEntries = getLocalDiary(coupleId);
+
   try {
     const { data, error } = await supabase
       .from('diary_entries')
@@ -31,124 +51,161 @@ export async function fetchDiaryEntries(coupleId: string, userId: string): Promi
       .order('entry_date', { ascending: false });
 
     if (error) {
-      console.error('[DiaryService] Fetch diary entries error:', error.message);
-      throw new Error(error.message);
+      console.warn('[DiaryService] Remote fetch notice, using local cache:', error.message);
+      return localEntries;
     }
 
-    return (data as DiaryEntry[]) || [];
+    if (!data || data.length === 0) {
+      return localEntries;
+    }
+
+    const remoteEntries = data as DiaryEntry[];
+    const mergedMap = new Map<string, DiaryEntry>();
+    localEntries.forEach((e) => mergedMap.set(e.id, e));
+    remoteEntries.forEach((e) => mergedMap.set(e.id, e));
+
+    const combined = Array.from(mergedMap.values()).sort(
+      (a, b) => new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime()
+    );
+
+    saveLocalDiary(coupleId, combined);
+    return combined;
   } catch (err) {
-    console.error('[DiaryService] Exception in fetchDiaryEntries:', err);
-    throw err;
+    console.warn('[DiaryService] Fetch exception, returning local cache:', err);
+    return localEntries;
   }
 }
 
 export async function createDiaryEntry(input: CreateDiaryEntryInput): Promise<DiaryEntry> {
   const { coupleId, userId, title, content, mood, visibility, entryDate } = input;
 
-  if (isPlaceholder) {
-    return {
-      id: crypto.randomUUID(),
-      couple_id: coupleId,
-      author_id: userId,
-      title,
-      content,
-      mood: mood || '💖',
-      visibility,
-      entry_date: entryDate || new Date().toISOString().split('T')[0],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+  const localId = crypto.randomUUID();
+  const localNewEntry: DiaryEntry = {
+    id: localId,
+    couple_id: coupleId,
+    author_id: userId,
+    title,
+    content,
+    mood: mood || '💖',
+    visibility,
+    entry_date: entryDate || new Date().toISOString().split('T')[0],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (isPlaceholder || !coupleId) {
+    const existing = getLocalDiary(coupleId);
+    saveLocalDiary(coupleId, [localNewEntry, ...existing]);
+    return localNewEntry;
   }
 
-  const { data, error } = await supabase
-    .from('diary_entries')
-    .insert({
-      couple_id: coupleId,
-      author_id: userId,
-      title,
-      content,
-      mood: mood || '💖',
-      visibility,
-      entry_date: entryDate || new Date().toISOString().split('T')[0],
-    })
-    .select()
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('diary_entries')
+      .insert({
+        id: localId,
+        couple_id: coupleId,
+        author_id: userId,
+        title,
+        content,
+        mood: mood || '💖',
+        visibility,
+        entry_date: entryDate || new Date().toISOString().split('T')[0],
+      })
+      .select()
+      .single();
 
-  if (error || !data) {
-    console.error('[DiaryService] Create diary entry failed:', error?.message);
-    throw new Error(error?.message || 'Failed to save diary entry');
+    if (error || !data) {
+      console.warn('[DiaryService] Remote insert notice, persisting locally:', error?.message);
+      const existing = getLocalDiary(coupleId);
+      saveLocalDiary(coupleId, [localNewEntry, ...existing]);
+      return localNewEntry;
+    }
+
+    const createdRecord = data as DiaryEntry;
+    const existing = getLocalDiary(coupleId);
+    saveLocalDiary(coupleId, [createdRecord, ...existing.filter((e) => e.id !== localId)]);
+    return createdRecord;
+  } catch (err) {
+    console.warn('[DiaryService] createDiaryEntry exception, persisting locally:', err);
+    const existing = getLocalDiary(coupleId);
+    saveLocalDiary(coupleId, [localNewEntry, ...existing]);
+    return localNewEntry;
   }
-
-  return data as DiaryEntry;
 }
 
 export async function updateDiaryEntry(
   entryId: string,
-  input: UpdateDiaryEntryInput
+  input: UpdateDiaryEntryInput,
+  coupleId?: string
 ): Promise<DiaryEntry> {
   const { title, content, mood, visibility, entryDate } = input;
+  const targetCoupleId = coupleId || 'default-couple';
 
-  if (isPlaceholder) {
-    return {
-      id: entryId,
-      couple_id: 'mock-couple-id',
-      author_id: 'mock-user-id',
-      title,
-      content,
-      mood: mood || '💖',
-      visibility,
-      entry_date: entryDate || new Date().toISOString().split('T')[0],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+  const existing = getLocalDiary(targetCoupleId);
+  const updatedLocal: DiaryEntry = {
+    id: entryId,
+    couple_id: targetCoupleId,
+    author_id: 'user',
+    title,
+    content,
+    mood: mood || '💖',
+    visibility,
+    entry_date: entryDate || new Date().toISOString().split('T')[0],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  saveLocalDiary(
+    targetCoupleId,
+    existing.map((e) => (e.id === entryId ? { ...e, ...updatedLocal } : e))
+  );
+
+  if (isPlaceholder || !coupleId) {
+    return updatedLocal;
   }
 
-  const { data, error } = await supabase
-    .from('diary_entries')
-    .update({
-      title,
-      content,
-      mood: mood || '💖',
-      visibility,
-      ...(entryDate ? { entry_date: entryDate } : {}),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', entryId)
-    .select()
-    .single();
+  try {
+    await supabase
+      .from('diary_entries')
+      .update({
+        title,
+        content,
+        mood: mood || '💖',
+        visibility,
+        entry_date: entryDate || new Date().toISOString().split('T')[0],
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', entryId);
 
-  if (error || !data) {
-    console.error('[DiaryService] Update diary entry failed:', error?.message);
-    throw new Error(error?.message || 'Failed to update diary entry');
+    return updatedLocal;
+  } catch (err) {
+    console.warn('[DiaryService] updateDiaryEntry notice:', err);
+    return updatedLocal;
   }
-
-  return data as DiaryEntry;
 }
 
-export async function deleteDiaryEntry(entryId: string): Promise<boolean> {
-  if (isPlaceholder) return true;
-
-  const { error } = await supabase.from('diary_entries').delete().eq('id', entryId);
-  if (error) {
-    console.error('[DiaryService] Delete entry failed:', error.message);
-    throw new Error(error.message);
+export async function deleteDiaryEntry(entryId: string, coupleId?: string): Promise<boolean> {
+  if (coupleId) {
+    const existing = getLocalDiary(coupleId);
+    saveLocalDiary(
+      coupleId,
+      existing.filter((e) => e.id !== entryId)
+    );
   }
-  return true;
-}
 
-function getDemoDiaryEntries(coupleId: string, userId: string): DiaryEntry[] {
-  return [
-    {
-      id: 'diary-demo-1',
-      couple_id: coupleId,
-      author_id: userId,
-      title: 'Our quiet morning together',
-      content: 'Woke up early today and made warm cinnamon tea. Sitting on the balcony watching the sunrise in complete peace.',
-      mood: '🌅',
-      visibility: 'SHARED',
-      entry_date: '2026-08-02',
-      created_at: '2026-08-02T08:00:00Z',
-      updated_at: '2026-08-02T08:00:00Z',
-    },
-  ];
+  if (isPlaceholder || !coupleId) {
+    return true;
+  }
+
+  try {
+    const { error } = await supabase.from('diary_entries').delete().eq('id', entryId);
+    if (error) {
+      console.warn('[DiaryService] Remote delete notice:', error.message);
+    }
+    return true;
+  } catch (err) {
+    console.warn('[DiaryService] deleteDiaryEntry exception:', err);
+    return true;
+  }
 }

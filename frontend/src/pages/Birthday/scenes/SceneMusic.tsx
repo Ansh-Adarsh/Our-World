@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Music, Play, Pause, ExternalLink } from 'lucide-react';
 
@@ -15,15 +15,67 @@ interface SceneMusicProps {
 }
 
 const DEFAULT_SONG: SongInfo = {
-  title: 'Our Favorite Song',
-  artist: 'The Couple Soundtrack',
-  link: 'https://open.spotify.com',
-  note: 'Playing in our hearts every day.',
+  title: 'Our Special Song',
+  artist: 'Sanctuary Soundtrack',
+  link: '',
+  note: 'Playing in our hearts every day ❤️',
 };
 
 export function SceneMusic({ topSong, onNext }: SceneMusicProps) {
   const song = topSong?.title ? topSong : DEFAULT_SONG;
   const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const isDirectAudio = Boolean(
+    song.link &&
+      (song.link.startsWith('http') ||
+        song.link.startsWith('data:') ||
+        song.link.startsWith('blob:')) &&
+      !song.link.includes('spotify.com') &&
+      !song.link.includes('youtube.com') &&
+      !song.link.includes('youtu.be')
+  );
+
+  useEffect(() => {
+    // Cleanup audio on unmount or song change
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, [song.link]);
+
+  const togglePlay = () => {
+    if (isDirectAudio && song.link) {
+      if (!audioRef.current) {
+        const audio = new Audio(song.link);
+        audio.onended = () => setIsPlaying(false);
+        audio.onerror = () => {
+          console.warn('[SceneMusic] Audio playback error for source:', song.link);
+        };
+        audioRef.current = audio;
+      }
+
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        audioRef.current
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch((err) => {
+            console.warn('[SceneMusic] Play request notice:', err.message);
+            setIsPlaying(true);
+          });
+      }
+    } else {
+      // Toggle visual spinning disc for external links / preview
+      setIsPlaying(!isPlaying);
+    }
+  };
 
   return (
     <div className="relative min-h-dvh flex flex-col items-center justify-between p-6 sm:p-10 text-center overflow-hidden select-none">
@@ -105,8 +157,9 @@ export function SceneMusic({ topSong, onNext }: SceneMusicProps) {
         {/* Controls */}
         <div className="flex items-center gap-4">
           <button
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={togglePlay}
             className="w-14 h-14 rounded-full bg-gradient-to-r from-[#B83B5E] to-[#C9A45C] text-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform cursor-pointer"
+            title={isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? <Pause size={22} /> : <Play size={22} className="ml-1" />}
           </button>
@@ -117,7 +170,7 @@ export function SceneMusic({ topSong, onNext }: SceneMusicProps) {
               target="_blank"
               rel="noopener noreferrer"
               className="p-3 rounded-full bg-white/10 text-[#9C8490] hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
-              title="Open full track"
+              title="Open full track link"
             >
               <ExternalLink size={18} />
             </a>
