@@ -31,10 +31,12 @@ export async function fetchPlaylistSongs(coupleId: string): Promise<PlaylistSong
       .eq('couple_id', coupleId)
       .order('created_at', { ascending: false });
 
-    if (error || !data) {
-      console.warn('[PlaylistService] Fetch note:', error?.message);
-      return getDemoSongs(coupleId);
+    if (error) {
+      console.error('[PlaylistService] Fetch songs error:', error.message);
+      throw new Error(error.message);
     }
+
+    if (!data) return [];
 
     const rawSongs = data as PlaylistSong[];
     const songsWithUrls: PlaylistSong[] = await Promise.all(
@@ -54,137 +56,157 @@ export async function fetchPlaylistSongs(coupleId: string): Promise<PlaylistSong
       })
     );
 
-    return songsWithUrls.length > 0 ? songsWithUrls : getDemoSongs(coupleId);
+    return songsWithUrls;
   } catch (err) {
-    console.error('[PlaylistService] Exception:', err);
-    return getDemoSongs(coupleId);
+    console.error('[PlaylistService] Exception in fetchPlaylistSongs:', err);
+    throw err;
   }
 }
 
-export async function addPlaylistSong(input: CreateSongInput): Promise<PlaylistSong | null> {
+export async function addPlaylistSong(input: CreateSongInput): Promise<PlaylistSong> {
   const { coupleId, addedById, title, artist, linkUrl, storagePath, note } = input;
 
-  try {
-    const { data, error } = await supabase
-      .from('playlist_songs')
-      .insert({
-        couple_id: coupleId,
-        added_by_id: addedById,
-        title,
-        artist,
-        link_url: linkUrl || null,
-        storage_path: storagePath || null,
-        note: note || null,
-      })
-      .select()
-      .single();
-
-    let audioUrl: string | undefined = undefined;
-    if (storagePath) {
-      const signed = await getSignedUrl('playlist-audio', storagePath, 7200);
-      audioUrl = signed || (storagePath.startsWith('data:') ? storagePath : undefined);
-    }
-
-    if (error || !data) {
-      console.warn('[PlaylistService] Insert note:', error?.message);
-      return {
-        id: crypto.randomUUID(),
-        couple_id: coupleId,
-        added_by_id: addedById,
-        title,
-        artist,
-        link_url: linkUrl || null,
-        storage_path: storagePath || null,
-        audio_url: audioUrl,
-        note: note || null,
-        created_at: new Date().toISOString(),
-      };
-    }
-
+  if (isPlaceholder) {
     return {
-      ...(data as PlaylistSong),
-      audio_url: audioUrl,
+      id: crypto.randomUUID(),
+      couple_id: coupleId,
+      added_by_id: addedById,
+      title,
+      artist,
+      link_url: linkUrl || null,
+      storage_path: storagePath || null,
+      audio_url: storagePath?.startsWith('data:') ? storagePath : undefined,
+      note: note || null,
+      created_at: new Date().toISOString(),
     };
-  } catch (err) {
-    console.error('[PlaylistService] Error adding song:', err);
-    return null;
   }
+
+  const { data, error } = await supabase
+    .from('playlist_songs')
+    .insert({
+      couple_id: coupleId,
+      added_by_id: addedById,
+      title,
+      artist,
+      link_url: linkUrl || null,
+      storage_path: storagePath || null,
+      note: note || null,
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error('[PlaylistService] Insert song failed:', error?.message);
+    throw new Error(error?.message || 'Failed to add song to playlist');
+  }
+
+  let audioUrl: string | undefined = undefined;
+  if (storagePath) {
+    const signed = await getSignedUrl('playlist-audio', storagePath, 7200);
+    audioUrl = signed || undefined;
+  }
+
+  return {
+    ...(data as PlaylistSong),
+    audio_url: audioUrl,
+  };
 }
 
 export async function updatePlaylistSong(
   songId: string,
   input: UpdateSongInput,
   coupleId: string
-): Promise<PlaylistSong | null> {
+): Promise<PlaylistSong> {
   const { title, artist, linkUrl, storagePath, note } = input;
 
-  try {
-    const { data, error } = await supabase
-      .from('playlist_songs')
-      .update({
-        title,
-        artist,
-        link_url: linkUrl || null,
-        storage_path: storagePath || null,
-        note: note || null,
-      })
-      .eq('id', songId)
-      .select()
-      .single();
-
-    let audioUrl: string | undefined = undefined;
-    if (storagePath) {
-      const signed = await getSignedUrl('playlist-audio', storagePath, 7200);
-      audioUrl = signed || (storagePath.startsWith('data:') ? storagePath : undefined);
-    }
-
-    if (error || !data) {
-      console.warn('[PlaylistService] Update note:', error?.message);
-      return {
-        id: songId,
-        couple_id: coupleId,
-        added_by_id: 'current-user',
-        title,
-        artist,
-        link_url: linkUrl || null,
-        storage_path: storagePath || null,
-        audio_url: audioUrl,
-        note: note || null,
-        created_at: new Date().toISOString(),
-      };
-    }
-
+  if (isPlaceholder) {
     return {
-      ...(data as PlaylistSong),
-      audio_url: audioUrl,
+      id: songId,
+      couple_id: coupleId,
+      added_by_id: 'mock-user',
+      title,
+      artist,
+      link_url: linkUrl || null,
+      storage_path: storagePath || null,
+      audio_url: undefined,
+      note: note || null,
+      created_at: new Date().toISOString(),
     };
-  } catch (err) {
-    console.error('[PlaylistService] Error updating song:', err);
-    return null;
   }
+
+  const { data, error } = await supabase
+    .from('playlist_songs')
+    .update({
+      title,
+      artist,
+      link_url: linkUrl || null,
+      storage_path: storagePath || null,
+      note: note || null,
+    })
+    .eq('id', songId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error('[PlaylistService] Update song failed:', error?.message);
+    throw new Error(error?.message || 'Failed to update song');
+  }
+
+  let audioUrl: string | undefined = undefined;
+  if (storagePath) {
+    const signed = await getSignedUrl('playlist-audio', storagePath, 7200);
+    audioUrl = signed || undefined;
+  }
+
+  return {
+    ...(data as PlaylistSong),
+    audio_url: audioUrl,
+  };
 }
 
 export async function deletePlaylistSong(
   songId: string,
   storagePath?: string | null
 ): Promise<boolean> {
-  try {
-    // 1. Delete associated audio file from storage
-    if (storagePath) {
-      await deleteAudioFile(storagePath);
-    }
+  if (isPlaceholder) return true;
 
-    // 2. Delete database record
-    const { error } = await supabase.from('playlist_songs').delete().eq('id', songId);
-    if (error) {
-      console.warn('[PlaylistService] Delete DB note:', error.message);
-    }
-
-    return true;
-  } catch (err) {
-    console.error('[PlaylistService] Error deleting song:', err);
-    return false;
+  // 1. Delete associated audio file from storage
+  if (storagePath) {
+    await deleteAudioFile(storagePath);
   }
+
+  // 2. Delete database record
+  const { error } = await supabase.from('playlist_songs').delete().eq('id', songId);
+  if (error) {
+    console.error('[PlaylistService] Delete song DB error:', error.message);
+    throw new Error(error.message);
+  }
+
+  return true;
+}
+
+/**
+ * Realtime subscription to playlist table changes
+ */
+export function subscribeToPlaylist(
+  coupleId: string,
+  onChange: () => void
+) {
+  return supabase
+    .channel(`couple-playlist-${coupleId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'playlist_songs',
+        filter: `couple_id=eq.${coupleId}`,
+      },
+      () => {
+        onChange();
+      }
+    )
+    .subscribe();
 }
 
 function getDemoSongs(coupleId: string): PlaylistSong[] {

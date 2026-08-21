@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/stores/authStore';
 import { saveOnboardingData, saveJourneyAnswer } from '@/services/onboardingService';
-import { createCouple } from '@/services/api';
+import { createCoupleRecord } from '@/services/relationshipService';
 import { JOURNEY_PATHS } from '@/routes/journeyRoutes';
 import { playUnlock } from '@/utils/sound';
 import {
@@ -45,7 +45,7 @@ type Stage = 'welcome' | 'questions' | 'gateway';
 export function Onboarding() {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
-  const { user, couple, loadCouple, onboardingStatus, onboardingStep, setJourneyStep, advanceJourney } =
+  const { user, couple, loadCouple, updateDisplayName, onboardingStatus, onboardingStep, setJourneyStep, advanceJourney } =
     useAuthStore();
 
   const isEditMode = onboardingStatus === 'completed';
@@ -64,13 +64,20 @@ export function Onboarding() {
   const [isSaving, setIsSaving] = useState(false);
 
   // ─── Chapter One answers ────────────────────────────────────────────────────
+  const [yourName, setYourName] = useState(user?.profile?.display_name || user?.email?.split('@')[0] || '');
   const [coupleName, setCoupleName] = useState(couple?.couple_name || '');
   const [anniversaryDate, setAnniversaryDate] = useState(couple?.anniversary_date || '');
   const [partnerName, setPartnerName] = useState(couple?.partner_name || '');
   const [partnerBirthday, setPartnerBirthday] = useState(couple?.partner_birthday || '');
   const [favoriteMemory, setFavoriteMemory] = useState('');
 
-  // Fill the form once the couple record arrives (it loads after first paint).
+  // Fill the form once user/couple records arrive
+  useEffect(() => {
+    if (user?.profile?.display_name) {
+      setYourName(user.profile.display_name);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!couple) return;
     setCoupleName((v) => v || couple.couple_name || '');
@@ -243,12 +250,14 @@ export function Onboarding() {
     if (couple?.id) return couple.id;
     if (!user) return null;
     try {
-      const created = await createCouple({
-        couple_name: coupleName || undefined,
-        anniversary_date: anniversaryDate || undefined,
+      const created = await createCoupleRecord({
+        coupleName: coupleName || undefined,
+        anniversaryDate: anniversaryDate || undefined,
+        partnerName: partnerName || undefined,
+        partnerBirthday: partnerBirthday || undefined,
       });
       await loadCouple();
-      return created.couple_id;
+      return created.id;
     } catch (err) {
       console.warn('[Onboarding] Couple could not be created yet:', err);
       return null;
@@ -260,12 +269,16 @@ export function Onboarding() {
     await saveOnboardingData({
       coupleId,
       userId: user.id,
+      displayName: yourName,
       coupleName,
       anniversaryDate,
       partnerName,
       partnerBirthday,
       answers: favoriteMemory.trim() ? { first_memory: favoriteMemory } : {},
     });
+    if (yourName.trim()) {
+      await updateDisplayName(yourName.trim()).catch(() => {});
+    }
     await loadCouple();
   };
 
@@ -444,12 +457,19 @@ export function Onboarding() {
               {question.chapter === 'setup' && question.kind === 'partner_details' && (
                 <div className="space-y-5">
                   <Input
+                    id="your-name-input"
+                    label="Your Display Name"
+                    placeholder="e.g. Ansh"
+                    value={yourName}
+                    onChange={(e) => setYourName(e.target.value)}
+                    autoFocus
+                  />
+                  <Input
                     id="partner-name-input"
                     label="Partner's Name or Nickname"
                     placeholder="e.g. My Sunshine"
                     value={partnerName}
                     onChange={(e) => setPartnerName(e.target.value)}
-                    autoFocus
                   />
                   <Input
                     id="partner-birthday-input"

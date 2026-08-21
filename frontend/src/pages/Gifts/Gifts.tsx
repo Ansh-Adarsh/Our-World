@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, CheckCircle2, Circle, ExternalLink, Sparkles, X } from 'lucide-react';
+import { Plus, CheckCircle2, Circle, ExternalLink, Sparkles, X, Edit2, Trash2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchGifts, addGift, toggleGiftGivenStatus } from '@/services/giftsService';
+import { useToastStore } from '@/stores/toastStore';
+import { fetchGifts, addGift, updateGift, deleteGift, toggleGiftGivenStatus } from '@/services/giftsService';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -11,10 +12,12 @@ import type { GiftItem } from '@/types';
 
 export function Gifts() {
   const { user, couple } = useAuthStore();
+  const { showToast } = useToastStore();
   const [gifts, setGifts] = useState<GiftItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'ALL' | 'WISHLIST' | 'GIVEN'>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingGift, setEditingGift] = useState<GiftItem | null>(null);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -23,16 +26,26 @@ export function Gifts() {
   const [linkUrl, setLinkUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const coupleId = couple?.id;
+
   useEffect(() => {
     async function loadData() {
+      if (!coupleId) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
-      const coupleId = couple?.id || 'demo-couple';
-      const data = await fetchGifts(coupleId);
-      setGifts(data);
-      setIsLoading(false);
+      try {
+        const data = await fetchGifts(coupleId);
+        setGifts(data);
+      } catch (err) {
+        console.error('[Gifts] Load data error:', err);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadData();
-  }, [couple?.id]);
+  }, [coupleId]);
 
   const filteredGifts = useMemo(() => {
     return gifts.filter((g) => {
@@ -42,32 +55,70 @@ export function Gifts() {
     });
   }, [gifts, filter]);
 
-  const handleAddGift = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !user) return;
-
-    setIsSubmitting(true);
-    const coupleId = couple?.id || 'demo-couple';
-
-    const newGift = await addGift({
-      coupleId,
-      addedById: user.id,
-      title,
-      description,
-      priceEstimate,
-      linkUrl,
-    });
-
-    if (newGift) {
-      setGifts((prev) => [newGift, ...prev]);
-    }
-
+  const openCreateModal = () => {
+    setEditingGift(null);
     setTitle('');
     setDescription('');
     setPriceEstimate('');
     setLinkUrl('');
-    setIsSubmitting(false);
-    setIsModalOpen(false);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (gift: GiftItem) => {
+    setEditingGift(gift);
+    setTitle(gift.title);
+    setDescription(gift.description || '');
+    setPriceEstimate(gift.price_estimate || '');
+    setLinkUrl(gift.link_url || '');
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !user || !coupleId) return;
+
+    setIsSubmitting(true);
+    try {
+      if (editingGift) {
+        const updated = await updateGift(editingGift.id, {
+          title,
+          description: description || undefined,
+          priceEstimate: priceEstimate || undefined,
+          linkUrl: linkUrl || undefined,
+        });
+        setGifts((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
+        showToast('Gift updated 🎁', 'success');
+      } else {
+        const newGift = await addGift({
+          coupleId,
+          addedById: user.id,
+          title,
+          description: description || undefined,
+          priceEstimate: priceEstimate || undefined,
+          linkUrl: linkUrl || undefined,
+        });
+        setGifts((prev) => [newGift, ...prev]);
+        showToast('Gift added to wishlist 🌟', 'success');
+      }
+      setIsModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save gift', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (giftId: string) => {
+    const ok = confirm('Are you sure you want to remove this gift from the wishlist?');
+    if (!ok) return;
+
+    try {
+      await deleteGift(giftId);
+      setGifts((prev) => prev.filter((g) => g.id !== giftId));
+      showToast('Gift removed', 'info');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete gift', 'error');
+    }
   };
 
   const handleToggleStatus = async (id: string, currentGiven: boolean) => {
@@ -75,7 +126,11 @@ export function Gifts() {
     setGifts((prev) =>
       prev.map((g) => (g.id === id ? { ...g, is_given: nextState, given_at: nextState ? new Date().toISOString() : null } : g))
     );
-    await toggleGiftGivenStatus(id, nextState);
+    try {
+      await toggleGiftGivenStatus(id, nextState);
+    } catch (err) {
+      console.error('[Gifts] Toggle status error:', err);
+    }
   };
 
   return (
@@ -103,7 +158,7 @@ export function Gifts() {
 
         <Button
           variant="gold"
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           className="flex items-center gap-2"
         >
           <Plus size={18} />
@@ -152,7 +207,7 @@ export function Gifts() {
             <p className="text-sm text-[#9C8490] font-sans mb-6">
               Add a surprise idea or gift wishlist item for special occasions.
             </p>
-            <Button variant="gold" onClick={() => setIsModalOpen(true)}>
+            <Button variant="gold" onClick={openCreateModal}>
               Add Wish 🎁
             </Button>
           </div>
@@ -162,7 +217,7 @@ export function Gifts() {
               <motion.div
                 key={gift.id}
                 whileHover={{ y: -4 }}
-                className={`glass-card p-6 rounded-2xl border relative overflow-hidden flex flex-col justify-between transition-all ${
+                className={`glass-card p-6 rounded-2xl border relative overflow-hidden flex flex-col justify-between transition-all group ${
                   gift.is_given
                     ? 'border-[#E98DA3]/30 bg-[#241B20]/60 opacity-85'
                     : 'border-[#C9A45C]/30 bg-gradient-to-b from-[#2E2028]/80 to-[#241B20]/90 hover:border-[#C9A45C]'
@@ -188,17 +243,33 @@ export function Gifts() {
                     )}
                   </div>
 
-                  {gift.link_url && (
-                    <a
-                      href={gift.link_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2 rounded-xl bg-white/5 border border-white/10 text-[#C9A45C] hover:bg-white/15 transition-colors"
-                      title="View Gift Link"
+                  <div className="flex items-center gap-1.5">
+                    {gift.link_url && (
+                      <a
+                        href={gift.link_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-[#C9A45C] hover:bg-white/15 transition-colors"
+                        title="View Gift Link"
+                      >
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
+                    <button
+                      onClick={() => openEditModal(gift)}
+                      className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-[#9C8490] hover:text-[#C9A45C] hover:bg-white/15 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Edit Gift"
                     >
-                      <ExternalLink size={16} />
-                    </a>
-                  )}
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(gift.id)}
+                      className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-[#9C8490] hover:text-red-400 hover:bg-white/15 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete Gift"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mb-6">
@@ -227,7 +298,7 @@ export function Gifts() {
         )}
       </div>
 
-      {/* ADD GIFT MODAL */}
+      {/* CREATE / EDIT GIFT MODAL */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -240,7 +311,7 @@ export function Gifts() {
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
                 <h2 className="text-2xl text-[#FFFCF9] font-serif flex items-center gap-2">
                   <Sparkles size={20} className="text-[#C9A45C]" />
-                  Add Gift Wish
+                  {editingGift ? 'Edit Gift Wish' : 'Add Gift Wish'}
                 </h2>
                 <button
                   onClick={() => setIsModalOpen(false)}
@@ -250,40 +321,41 @@ export function Gifts() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddGift} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <Input
-                  id="gift-title"
-                  label="Gift Title"
-                  placeholder="e.g. Instant Camera, Book, Perfume"
+                  id="gift-title-input"
+                  label="Gift Title / Item Name"
+                  placeholder="e.g. Vintage Rose Gold Camera, Custom Necklace..."
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
                 />
 
                 <Input
-                  id="gift-price"
-                  label="Price Estimate (Optional)"
-                  placeholder="e.g. $50"
+                  id="gift-price-input"
+                  label="Estimated Price (Optional)"
+                  placeholder="e.g. $50, ₹3,500, €80"
                   value={priceEstimate}
                   onChange={(e) => setPriceEstimate(e.target.value)}
                 />
 
                 <Input
-                  id="gift-link"
-                  label="Product Link URL (Optional)"
-                  placeholder="https://..."
+                  id="gift-link-input"
+                  label="Product / Purchase Link (Optional)"
+                  placeholder="https://amazon.com/..."
+                  type="url"
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
                 />
 
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1.5 pt-1">
                   <label className="text-xs font-sans uppercase tracking-widest text-[#C9A45C]">
-                    Description / Size / Color Notes
+                    Notes or Reason
                   </label>
                   <textarea
                     rows={3}
-                    className="w-full bg-[#1A1015]/80 border border-white/10 rounded-xl p-3 text-[#FFFCF9] text-sm focus:outline-none focus:border-[#C9A45C] placeholder-[#9C8490]/50"
-                    placeholder="Specific color preference, size, or details..."
+                    className="w-full bg-[#1A1015]/80 border border-white/10 rounded-xl p-3 text-[#FFFCF9] text-xs focus:outline-none focus:border-[#C9A45C] placeholder-[#9C8490]/50 font-sans"
+                    placeholder="Why this item is special or where to find it..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                   />
@@ -294,7 +366,7 @@ export function Gifts() {
                     Cancel
                   </Button>
                   <Button variant="gold" type="submit" isLoading={isSubmitting}>
-                    Add Wish 🎁
+                    {editingGift ? 'Update Gift 🎁' : 'Save to Wishlist ✨'}
                   </Button>
                 </div>
               </form>

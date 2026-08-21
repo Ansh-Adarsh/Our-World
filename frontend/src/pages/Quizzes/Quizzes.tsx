@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HelpCircle, Plus, Award, Sparkles, X, RotateCcw, Bot } from 'lucide-react';
+import { HelpCircle, Plus, Award, Sparkles, X, RotateCcw, Bot, Trash2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchQuizzes, createQuiz } from '@/services/quizzesService';
+import { useToastStore } from '@/stores/toastStore';
+import { fetchQuizzes, createQuiz, deleteQuiz, recordQuizAnswer } from '@/services/quizzesService';
 import { generateAIContent } from '@/services/aiService';
 import { HumanApprovalModal } from '@/components/ui/HumanApprovalModal';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
@@ -12,6 +13,7 @@ import type { Quiz } from '@/types';
 
 export function Quizzes() {
   const { user, couple } = useAuthStore();
+  const { showToast } = useToastStore();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
@@ -37,16 +39,26 @@ export function Quizzes() {
   const [isAILoading, setIsAILoading] = useState(false);
   const [aiDraft, setAIDraft] = useState<{ content: string; agent: string } | null>(null);
 
+  const coupleId = couple?.id;
+
   useEffect(() => {
     async function loadData() {
+      if (!coupleId) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
-      const coupleId = couple?.id || 'demo-couple';
-      const data = await fetchQuizzes(coupleId);
-      setQuizzes(data);
-      setIsLoading(false);
+      try {
+        const data = await fetchQuizzes(coupleId);
+        setQuizzes(data);
+      } catch (err) {
+        console.error('[Quizzes] Load data error:', err);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadData();
-  }, [couple?.id]);
+  }, [coupleId]);
 
   const handleStartQuiz = (quiz: Quiz) => {
     setActiveQuiz(quiz);
@@ -55,10 +67,17 @@ export function Quizzes() {
     setIsFinished(false);
   };
 
-  const handleSelectOption = (index: number) => {
+  const handleSelectOption = async (index: number) => {
     if (!activeQuiz || !activeQuiz.questions) return;
+    const currentQ = activeQuiz.questions[currentQuestionIndex];
+    const isCorrect = index === currentQ.correct_option_index;
+
     const nextAnswers = [...userAnswers, index];
     setUserAnswers(nextAnswers);
+
+    if (user && currentQ.id) {
+      void recordQuizAnswer(activeQuiz.id, currentQ.id, user.id, index, isCorrect);
+    }
 
     if (currentQuestionIndex < activeQuiz.questions.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1);
@@ -97,25 +116,40 @@ export function Quizzes() {
 
   const handleSaveQuiz = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quizTitle.trim() || questionsList.length === 0 || !user) return;
+    if (!quizTitle.trim() || questionsList.length === 0 || !user || !coupleId) return;
 
-    const coupleId = couple?.id || 'demo-couple';
-    const newQuiz = await createQuiz({
-      coupleId,
-      creatorId: user.id,
-      title: quizTitle,
-      description: quizDescription,
-      questions: questionsList,
-    });
+    try {
+      const newQuiz = await createQuiz({
+        coupleId,
+        creatorId: user.id,
+        title: quizTitle,
+        description: quizDescription,
+        questions: questionsList,
+      });
 
-    if (newQuiz) {
       setQuizzes((prev) => [newQuiz, ...prev]);
+      showToast('Quiz created successfully! 🎉', 'success');
+      setQuizTitle('');
+      setQuizDescription('');
+      setQuestionsList([]);
+      setIsBuilderOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create quiz', 'error');
     }
+  };
 
-    setQuizTitle('');
-    setQuizDescription('');
-    setQuestionsList([]);
-    setIsBuilderOpen(false);
+  const handleDeleteQuiz = async (quizId: string) => {
+    const ok = confirm('Are you sure you want to delete this trivia quiz?');
+    if (!ok) return;
+
+    try {
+      await deleteQuiz(quizId);
+      setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
+      if (activeQuiz?.id === quizId) setActiveQuiz(null);
+      showToast('Quiz deleted', 'info');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete quiz', 'error');
+    }
   };
 
   return (
@@ -179,9 +213,20 @@ export function Quizzes() {
                   <div className="w-12 h-12 rounded-2xl bg-[#E98DA3]/15 border border-[#E98DA3]/30 text-[#E98DA3] flex items-center justify-center">
                     <HelpCircle size={24} />
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-[#C9A45C] font-sans">
-                    {q.questions?.length || 0} Questions
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-[#C9A45C] font-sans">
+                      {q.questions?.length || 0} Questions
+                    </span>
+                    {user && q.creator_id === user.id && (
+                      <button
+                        onClick={() => handleDeleteQuiz(q.id)}
+                        className="p-1.5 rounded-xl bg-white/5 border border-white/10 text-[#9C8490] hover:text-red-400 hover:bg-white/15 transition-colors"
+                        title="Delete Quiz"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mb-6">

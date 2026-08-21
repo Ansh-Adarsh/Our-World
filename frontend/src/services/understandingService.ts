@@ -21,61 +21,60 @@ export async function fetchUnderstandingEntries(coupleId: string): Promise<Under
       .eq('couple_id', coupleId)
       .order('created_at', { ascending: false });
 
-    if (error || !data) {
-      console.warn('[UnderstandingService] Fetch note:', error?.message);
-      return getDemoUnderstandingEntries(coupleId);
+    if (error) {
+      console.error('[UnderstandingService] Fetch error:', error.message);
+      throw new Error(error.message);
     }
 
-    return (data as UnderstandingEntry[]).length > 0
-      ? (data as UnderstandingEntry[])
-      : getDemoUnderstandingEntries(coupleId);
+    if (!data) return [];
+
+    return data as UnderstandingEntry[];
   } catch (err) {
-    console.error('[UnderstandingService] Exception:', err);
-    return getDemoUnderstandingEntries(coupleId);
+    console.error('[UnderstandingService] Exception in fetchUnderstandingEntries:', err);
+    throw err;
   }
 }
 
 export async function createUnderstandingEntry(
   input: CreateUnderstandingInput
-): Promise<UnderstandingEntry | null> {
+): Promise<UnderstandingEntry> {
   const { coupleId, userId, topic, myPerspective, partnerPerspectiveSummary, proposedResolution } = input;
 
-  try {
-    const { data, error } = await supabase
-      .from('understanding_entries')
-      .insert({
-        couple_id: coupleId,
-        author_id: userId,
-        topic,
-        my_perspective: myPerspective,
-        partner_perspective_summary: partnerPerspectiveSummary || null,
-        proposed_resolution: proposedResolution || null,
-        status: 'open',
-      })
-      .select()
-      .single();
-
-    if (error || !data) {
-      console.warn('[UnderstandingService] Insert note:', error?.message);
-      return {
-        id: crypto.randomUUID(),
-        couple_id: coupleId,
-        author_id: userId,
-        topic,
-        my_perspective: myPerspective,
-        partner_perspective_summary: partnerPerspectiveSummary || null,
-        proposed_resolution: proposedResolution || null,
-        status: 'open',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-    }
-
-    return data as UnderstandingEntry;
-  } catch (err) {
-    console.error('[UnderstandingService] Error creating entry:', err);
-    return null;
+  if (isPlaceholder) {
+    return {
+      id: crypto.randomUUID(),
+      couple_id: coupleId,
+      author_id: userId,
+      topic,
+      my_perspective: myPerspective,
+      partner_perspective_summary: partnerPerspectiveSummary || null,
+      proposed_resolution: proposedResolution || null,
+      status: 'open',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
   }
+
+  const { data, error } = await supabase
+    .from('understanding_entries')
+    .insert({
+      couple_id: coupleId,
+      author_id: userId,
+      topic,
+      my_perspective: myPerspective,
+      partner_perspective_summary: partnerPerspectiveSummary || null,
+      proposed_resolution: proposedResolution || null,
+      status: 'open',
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error('[UnderstandingService] Insert entry failed:', error?.message);
+    throw new Error(error?.message || 'Failed to create understanding entry');
+  }
+
+  return data as UnderstandingEntry;
 }
 
 export async function updateUnderstandingStatus(
@@ -83,26 +82,38 @@ export async function updateUnderstandingStatus(
   status: UnderstandingStatus,
   proposedResolution?: string
 ): Promise<boolean> {
-  try {
-    const updateData: Record<string, unknown> = { status };
-    if (proposedResolution !== undefined) {
-      updateData.proposed_resolution = proposedResolution;
-    }
+  if (isPlaceholder) return true;
 
-    const { error } = await supabase
-      .from('understanding_entries')
-      .update(updateData)
-      .eq('id', id);
-
-    if (error) {
-      console.warn('[UnderstandingService] Status update note:', error.message);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('[UnderstandingService] Status update exception:', err);
-    return false;
+  const updateData: Record<string, unknown> = { status };
+  if (proposedResolution !== undefined) {
+    updateData.proposed_resolution = proposedResolution;
   }
+
+  const { error } = await supabase
+    .from('understanding_entries')
+    .update(updateData)
+    .eq('id', id);
+
+  if (error) {
+    console.error('[UnderstandingService] Status update error:', error.message);
+    throw new Error(error.message);
+  }
+  return true;
+}
+
+export async function deleteUnderstandingEntry(id: string): Promise<boolean> {
+  if (isPlaceholder) return true;
+
+  const { error } = await supabase
+    .from('understanding_entries')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('[UnderstandingService] Delete entry error:', error.message);
+    throw new Error(error.message);
+  }
+  return true;
 }
 
 function getDemoUnderstandingEntries(coupleId: string): UnderstandingEntry[] {

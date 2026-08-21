@@ -23,6 +23,7 @@ import {
   addPlaylistSong,
   updatePlaylistSong,
   deletePlaylistSong,
+  subscribeToPlaylist,
 } from '@/services/playlistService';
 import { uploadAudioFile, validateAudioFile } from '@/services/storage';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
@@ -70,16 +71,42 @@ export function Playlist() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
 
-  const coupleId = couple?.id || 'demo-couple';
+  const coupleId = couple?.id;
 
   useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      const data = await fetchPlaylistSongs(coupleId);
-      setSongs(data);
+    if (!coupleId) {
       setIsLoading(false);
+      return;
+    }
+
+    async function loadData() {
+      if (!coupleId) return;
+      setIsLoading(true);
+      try {
+        const data = await fetchPlaylistSongs(coupleId);
+        setSongs(data);
+      } catch (err) {
+        console.error('[Playlist] Load data error:', err);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadData();
+
+    // Subscribe to realtime playlist changes across partners
+    const channel = subscribeToPlaylist(coupleId, async () => {
+      if (!coupleId) return;
+      try {
+        const refreshed = await fetchPlaylistSongs(coupleId);
+        setSongs(refreshed);
+      } catch (err) {
+        console.error('[Playlist] Realtime reload error:', err);
+      }
+    });
+
+    return () => {
+      if (channel) channel.unsubscribe();
+    };
   }, [coupleId]);
 
   // Audio Element Handlers
@@ -213,7 +240,7 @@ export function Playlist() {
 
   const handleAddSong = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !artist.trim() || !user) return;
+    if (!title.trim() || !artist.trim() || !user || !coupleId) return;
 
     setIsSubmitting(true);
     let storagePath: string | undefined = undefined;
@@ -255,7 +282,7 @@ export function Playlist() {
 
   const handleUpdateSong = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingSong || !title.trim() || !artist.trim()) return;
+    if (!editingSong || !title.trim() || !artist.trim() || !coupleId) return;
 
     setIsSubmitting(true);
 

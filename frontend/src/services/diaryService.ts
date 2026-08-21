@@ -11,79 +11,127 @@ export interface CreateDiaryEntryInput {
   entryDate?: string;
 }
 
+export interface UpdateDiaryEntryInput {
+  title: string;
+  content: string;
+  mood?: string;
+  visibility: DiaryVisibility;
+  entryDate?: string;
+}
+
 export async function fetchDiaryEntries(coupleId: string, userId: string): Promise<DiaryEntry[]> {
   if (isPlaceholder) {
     return getDemoDiaryEntries(coupleId, userId);
   }
   try {
-    // ⚠️ Security Enforcement:
-    // Supabase RLS enforces that PRIVATE entries are ONLY returned when author_id == auth.uid()
-    // We also pass the explicit filter in query for efficiency
     const { data, error } = await supabase
       .from('diary_entries')
       .select('*')
       .eq('couple_id', coupleId)
       .order('entry_date', { ascending: false });
 
-    if (error || !data) {
-      console.warn('[DiaryService] Fetch diary entries note:', error?.message);
-      return getDemoDiaryEntries(coupleId, userId);
+    if (error) {
+      console.error('[DiaryService] Fetch diary entries error:', error.message);
+      throw new Error(error.message);
     }
 
-    return (data as DiaryEntry[]).length > 0 ? (data as DiaryEntry[]) : getDemoDiaryEntries(coupleId, userId);
+    return (data as DiaryEntry[]) || [];
   } catch (err) {
-    console.error('[DiaryService] Exception:', err);
-    return getDemoDiaryEntries(coupleId, userId);
+    console.error('[DiaryService] Exception in fetchDiaryEntries:', err);
+    throw err;
   }
 }
 
-export async function createDiaryEntry(input: CreateDiaryEntryInput): Promise<DiaryEntry | null> {
+export async function createDiaryEntry(input: CreateDiaryEntryInput): Promise<DiaryEntry> {
   const { coupleId, userId, title, content, mood, visibility, entryDate } = input;
 
-  try {
-    const { data, error } = await supabase
-      .from('diary_entries')
-      .insert({
-        couple_id: coupleId,
-        author_id: userId,
-        title,
-        content,
-        mood: mood || '💖',
-        visibility,
-        entry_date: entryDate || new Date().toISOString().split('T')[0],
-      })
-      .select()
-      .single();
-
-    if (error || !data) {
-      console.warn('[DiaryService] Supabase diary insert note:', error?.message);
-      const localId = crypto.randomUUID();
-      return {
-        id: localId,
-        couple_id: coupleId,
-        author_id: userId,
-        title,
-        content,
-        mood: mood || '💖',
-        visibility,
-        entry_date: entryDate || new Date().toISOString().split('T')[0],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-    }
-
-    return data as DiaryEntry;
-  } catch (err) {
-    console.error('[DiaryService] Error creating diary entry:', err);
-    return null;
+  if (isPlaceholder) {
+    return {
+      id: crypto.randomUUID(),
+      couple_id: coupleId,
+      author_id: userId,
+      title,
+      content,
+      mood: mood || '💖',
+      visibility,
+      entry_date: entryDate || new Date().toISOString().split('T')[0],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
   }
+
+  const { data, error } = await supabase
+    .from('diary_entries')
+    .insert({
+      couple_id: coupleId,
+      author_id: userId,
+      title,
+      content,
+      mood: mood || '💖',
+      visibility,
+      entry_date: entryDate || new Date().toISOString().split('T')[0],
+    })
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error('[DiaryService] Create diary entry failed:', error?.message);
+    throw new Error(error?.message || 'Failed to save diary entry');
+  }
+
+  return data as DiaryEntry;
+}
+
+export async function updateDiaryEntry(
+  entryId: string,
+  input: UpdateDiaryEntryInput
+): Promise<DiaryEntry> {
+  const { title, content, mood, visibility, entryDate } = input;
+
+  if (isPlaceholder) {
+    return {
+      id: entryId,
+      couple_id: 'mock-couple-id',
+      author_id: 'mock-user-id',
+      title,
+      content,
+      mood: mood || '💖',
+      visibility,
+      entry_date: entryDate || new Date().toISOString().split('T')[0],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  const { data, error } = await supabase
+    .from('diary_entries')
+    .update({
+      title,
+      content,
+      mood: mood || '💖',
+      visibility,
+      ...(entryDate ? { entry_date: entryDate } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', entryId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    console.error('[DiaryService] Update diary entry failed:', error?.message);
+    throw new Error(error?.message || 'Failed to update diary entry');
+  }
+
+  return data as DiaryEntry;
 }
 
 export async function deleteDiaryEntry(entryId: string): Promise<boolean> {
+  if (isPlaceholder) return true;
+
   const { error } = await supabase.from('diary_entries').delete().eq('id', entryId);
   if (error) {
     console.error('[DiaryService] Delete entry failed:', error.message);
-    return false;
+    throw new Error(error.message);
   }
   return true;
 }
@@ -101,18 +149,6 @@ function getDemoDiaryEntries(coupleId: string, userId: string): DiaryEntry[] {
       entry_date: '2026-08-02',
       created_at: '2026-08-02T08:00:00Z',
       updated_at: '2026-08-02T08:00:00Z',
-    },
-    {
-      id: 'diary-demo-2',
-      couple_id: userId, // private to current user
-      author_id: userId,
-      title: 'Thoughts on our upcoming anniversary',
-      content: 'I want to plan a secret surprise trip for us next month. Need to start looking at quiet cabins by the lake.',
-      mood: '🎁',
-      visibility: 'PRIVATE',
-      entry_date: '2026-07-28',
-      created_at: '2026-07-28T21:30:00Z',
-      updated_at: '2026-07-28T21:30:00Z',
     },
   ];
 }

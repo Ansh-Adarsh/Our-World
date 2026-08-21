@@ -7,7 +7,7 @@
  * - Photos: `{couple_id}/{memory_id}/{uuid}-{filename}`
  * - Audio: `{couple_id}/{uuid}-{filename}`
  */
-import { supabase } from './supabase';
+import { supabase, isPlaceholder } from './supabase';
 
 const PHOTOS_BUCKET = 'memories-photos';
 const AUDIO_BUCKET = 'playlist-audio';
@@ -118,10 +118,15 @@ export async function uploadMemoryPhoto(
   coupleId: string,
   memoryId: string,
   file: File
-): Promise<{ path: string; signedUrl: string } | null> {
+): Promise<{ path: string; signedUrl: string }> {
   const validation = validatePhotoFile(file);
   if (!validation.valid) {
     throw new Error(validation.error);
+  }
+
+  if (isPlaceholder) {
+    const dataUrl = await fileToDataUrl(file);
+    return { path: `local/${file.name}`, signedUrl: dataUrl };
   }
 
   try {
@@ -136,18 +141,15 @@ export async function uploadMemoryPhoto(
       });
 
     if (uploadError) {
-      console.warn('[Storage] Supabase photo upload notice:', uploadError.message);
-      // Construct offline preview
-      const dataUrl = await fileToDataUrl(file);
-      return { path: storagePath, signedUrl: dataUrl };
+      console.error('[Storage] Supabase photo upload error:', uploadError.message);
+      throw new Error(uploadError.message || 'Failed to upload photo to sanctuary storage');
     }
 
     const signedUrl = await getSignedUrl(PHOTOS_BUCKET, storagePath, 7200);
     return { path: storagePath, signedUrl: signedUrl || '' };
   } catch (err: any) {
     console.error('[Storage] Memory photo upload error:', err);
-    const dataUrl = await fileToDataUrl(file);
-    return { path: `local/${file.name}`, signedUrl: dataUrl };
+    throw err;
   }
 }
 
@@ -178,10 +180,15 @@ export async function deleteMemoryPhoto(path: string): Promise<boolean> {
 export async function uploadAudioFile(
   coupleId: string,
   file: File
-): Promise<{ path: string; signedUrl: string } | null> {
+): Promise<{ path: string; signedUrl: string }> {
   const validation = validateAudioFile(file);
   if (!validation.valid) {
     throw new Error(validation.error);
+  }
+
+  if (isPlaceholder) {
+    const dataUrl = await fileToDataUrl(file);
+    return { path: `local/${file.name}`, signedUrl: dataUrl };
   }
 
   try {
@@ -196,17 +203,15 @@ export async function uploadAudioFile(
       });
 
     if (uploadError) {
-      console.warn('[Storage] Supabase audio upload notice:', uploadError.message);
-      const dataUrl = await fileToDataUrl(file);
-      return { path: storagePath, signedUrl: dataUrl };
+      console.error('[Storage] Supabase audio upload error:', uploadError.message);
+      throw new Error(uploadError.message || 'Failed to upload audio to sanctuary storage');
     }
 
     const signedUrl = await getSignedUrl(AUDIO_BUCKET, storagePath, 7200);
     return { path: storagePath, signedUrl: signedUrl || '' };
   } catch (err: any) {
     console.error('[Storage] Audio upload error:', err);
-    const dataUrl = await fileToDataUrl(file);
-    return { path: `local/${file.name}`, signedUrl: dataUrl };
+    throw err;
   }
 }
 

@@ -4,6 +4,7 @@ import type { OnboardingAnswer, OnboardingStatus } from '@/types';
 export interface SaveOnboardingInput {
   coupleId: string;
   userId: string;
+  displayName?: string;
   coupleName?: string;
   anniversaryDate?: string;
   partnerName?: string;
@@ -12,13 +13,26 @@ export interface SaveOnboardingInput {
 }
 
 export async function saveOnboardingData(input: SaveOnboardingInput): Promise<boolean> {
-  const { coupleId, userId, coupleName, anniversaryDate, partnerName, partnerBirthday, answers } = input;
+  const { coupleId, userId, displayName, coupleName, anniversaryDate, partnerName, partnerBirthday, answers } = input;
 
   try {
-    // 1. Update couple record.
-    // Only fields that were actually supplied are written — an omitted field
-    // must never blank out a value the couple already saved (this matters when
-    // an existing user edits their details and skips a question).
+    // 1. Update user profile display_name if provided
+    if (displayName && displayName.trim()) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          display_name: displayName.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+
+      if (profileError) {
+        console.warn('[OnboardingService] Note on updating profile display_name:', profileError.message);
+      }
+    }
+
+    // 2. Update couple record
+    // Only fields that were actually supplied are written
     const coupleUpdate: Record<string, string | boolean | null> = { onboarding_completed: true };
     if (coupleName !== undefined) coupleUpdate.couple_name = coupleName || null;
     if (anniversaryDate !== undefined) coupleUpdate.anniversary_date = anniversaryDate || null;
@@ -31,7 +45,8 @@ export async function saveOnboardingData(input: SaveOnboardingInput): Promise<bo
       .eq('id', coupleId);
 
     if (coupleError) {
-      console.warn('[OnboardingService] Note updating couples table:', coupleError.message);
+      console.error('[OnboardingService] Error updating couples table:', coupleError.message);
+      return false;
     }
 
     // 2. Insert onboarding answers
@@ -48,7 +63,7 @@ export async function saveOnboardingData(input: SaveOnboardingInput): Promise<bo
         .upsert(answersToInsert, { onConflict: 'couple_id,user_id,question_key' });
 
       if (answersError) {
-        console.warn('[OnboardingService] Note saving answers:', answersError.message);
+        console.error('[OnboardingService] Error saving answers:', answersError.message);
       }
     }
 

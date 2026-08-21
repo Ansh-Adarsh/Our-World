@@ -16,7 +16,13 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
-import { fetchMemories, createMemory, updateMemory, deleteMemory } from '@/services/memoriesService';
+import {
+  fetchMemories,
+  createMemory,
+  updateMemory,
+  deleteMemory,
+  subscribeToMemories,
+} from '@/services/memoriesService';
 import { uploadMemoryPhoto, validatePhotoFile } from '@/services/storage';
 import { generateAIContent } from '@/services/aiService';
 import { HumanApprovalModal } from '@/components/ui/HumanApprovalModal';
@@ -63,16 +69,43 @@ export function Memories() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
-  const coupleId = couple?.id || 'demo-couple';
+  const coupleId = couple?.id;
+  const [activeLightboxPhotoIndex, setActiveLightboxPhotoIndex] = useState(0);
 
   useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      const data = await fetchMemories(coupleId);
-      setMemories(data);
+    if (!coupleId) {
       setIsLoading(false);
+      return;
+    }
+
+    async function loadData() {
+      if (!coupleId) return;
+      setIsLoading(true);
+      try {
+        const data = await fetchMemories(coupleId);
+        setMemories(data);
+      } catch (err) {
+        console.error('[Memories] Load data error:', err);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadData();
+
+    // Subscribe to realtime updates across both partners
+    const channel = subscribeToMemories(coupleId, async () => {
+      if (!coupleId) return;
+      try {
+        const refreshed = await fetchMemories(coupleId);
+        setMemories(refreshed);
+      } catch (err) {
+        console.error('[Memories] Realtime reload error:', err);
+      }
+    });
+
+    return () => {
+      if (channel) channel.unsubscribe();
+    };
   }, [coupleId]);
 
   const [selectedFilter, setSelectedFilter] = useState('all');
@@ -162,7 +195,7 @@ export function Memories() {
 
   const handleCreateMemory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !user) return;
+    if (!title.trim() || !user || !coupleId) return;
 
     setIsUploading(true);
     setUploadProgress('Uploading photos securely...');
@@ -214,7 +247,7 @@ export function Memories() {
 
   const handleUpdateMemory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingMemory || !title.trim()) return;
+    if (!editingMemory || !title.trim() || !coupleId) return;
 
     setIsUploading(true);
     setUploadProgress('Saving changes...');
@@ -871,14 +904,36 @@ export function Memories() {
 
               {/* Photos Gallery Viewer */}
               {selectedMemory.photos && selectedMemory.photos.length > 0 && (
-                <div className="space-y-4 mb-6">
-                  <div className="rounded-2xl overflow-hidden border border-[#F4B8C9]/20 max-h-96 bg-black flex items-center justify-center">
+                <div className="space-y-3 mb-6">
+                  <div className="rounded-2xl overflow-hidden border border-[#F4B8C9]/20 max-h-96 bg-black flex items-center justify-center relative">
                     <img
-                      src={selectedMemory.photos[0].signed_url}
+                      src={selectedMemory.photos[activeLightboxPhotoIndex]?.signed_url || selectedMemory.photos[0]?.signed_url}
                       alt={selectedMemory.title}
                       className="max-h-96 w-full object-contain"
                     />
                   </div>
+                  {selectedMemory.photos.length > 1 && (
+                    <div className="flex items-center gap-2 overflow-x-auto py-1">
+                      {selectedMemory.photos.map((p, idx) => (
+                        <button
+                          key={p.id || idx}
+                          type="button"
+                          onClick={() => setActiveLightboxPhotoIndex(idx)}
+                          className={`w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${
+                            activeLightboxPhotoIndex === idx
+                              ? 'border-[#F4B8C9] scale-105'
+                              : 'border-transparent opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <img
+                            src={p.signed_url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

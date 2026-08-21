@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, CheckCircle, Clock, Sparkles, X, ShieldAlert } from 'lucide-react';
+import { Plus, CheckCircle, Clock, Sparkles, X, ShieldAlert, Trash2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchUnderstandingEntries, createUnderstandingEntry, updateUnderstandingStatus } from '@/services/understandingService';
+import { useToastStore } from '@/stores/toastStore';
+import { fetchUnderstandingEntries, createUnderstandingEntry, updateUnderstandingStatus, deleteUnderstandingEntry } from '@/services/understandingService';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -11,6 +12,7 @@ import type { UnderstandingEntry } from '@/types';
 
 export function UnderstandingCorner() {
   const { user, couple } = useAuthStore();
+  const { showToast } = useToastStore();
   const [entries, setEntries] = useState<UnderstandingEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -23,53 +25,84 @@ export function UnderstandingCorner() {
   const [proposedResolution, setProposedResolution] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const coupleId = couple?.id;
+
   useEffect(() => {
     async function loadData() {
+      if (!coupleId) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
-      const coupleId = couple?.id || 'demo-couple';
-      const data = await fetchUnderstandingEntries(coupleId);
-      setEntries(data);
-      setIsLoading(false);
+      try {
+        const data = await fetchUnderstandingEntries(coupleId);
+        setEntries(data);
+      } catch (err) {
+        console.error('[UnderstandingCorner] Load data error:', err);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadData();
-  }, [couple?.id]);
+  }, [coupleId]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!topic.trim() || !myPerspective.trim() || !user) return;
+    if (!topic.trim() || !myPerspective.trim() || !user || !coupleId) return;
 
     setIsSubmitting(true);
-    const coupleId = couple?.id || 'demo-couple';
+    try {
+      const newEntry = await createUnderstandingEntry({
+        coupleId,
+        userId: user.id,
+        topic,
+        myPerspective,
+        partnerPerspectiveSummary,
+        proposedResolution,
+      });
 
-    const newEntry = await createUnderstandingEntry({
-      coupleId,
-      userId: user.id,
-      topic,
-      myPerspective,
-      partnerPerspectiveSummary,
-      proposedResolution,
-    });
-
-    if (newEntry) {
       setEntries((prev) => [newEntry, ...prev]);
+      showToast('Reflection logged 🕊️', 'success');
+      setTopic('');
+      setMyPerspective('');
+      setPartnerPerspectiveSummary('');
+      setProposedResolution('');
+      setIsModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to log reflection', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setTopic('');
-    setMyPerspective('');
-    setPartnerPerspectiveSummary('');
-    setProposedResolution('');
-    setIsSubmitting(false);
-    setIsModalOpen(false);
   };
 
   const handleResolve = async (id: string) => {
-    setEntries((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: 'resolved' } : item))
-    );
-    if (selectedEntry?.id === id) {
-      setSelectedEntry((prev) => (prev ? { ...prev, status: 'resolved' } : null));
+    try {
+      setEntries((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, status: 'resolved' } : item))
+      );
+      if (selectedEntry?.id === id) {
+        setSelectedEntry((prev) => (prev ? { ...prev, status: 'resolved' } : null));
+      }
+      await updateUnderstandingStatus(id, 'resolved');
+      showToast('Marked as resolved & peace achieved 🕊️', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update status', 'error');
     }
-    await updateUnderstandingStatus(id, 'resolved');
+  };
+
+  const handleDelete = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const ok = confirm('Are you sure you want to delete this reflection entry?');
+    if (!ok) return;
+
+    try {
+      await deleteUnderstandingEntry(id);
+      setEntries((prev) => prev.filter((item) => item.id !== id));
+      if (selectedEntry?.id === id) setSelectedEntry(null);
+      showToast('Entry deleted', 'info');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete entry', 'error');
+    }
   };
 
   return (
@@ -153,9 +186,20 @@ export function UnderstandingCorner() {
                       {isResolved ? <CheckCircle size={10} /> : <Clock size={10} />}
                       {entry.status}
                     </span>
-                    <span className="text-[10px] text-[#9C8490]">
-                      {new Date(entry.created_at).toLocaleDateString()}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-[#9C8490]">
+                        {new Date(entry.created_at).toLocaleDateString()}
+                      </span>
+                      {user && entry.author_id === user.id && (
+                        <button
+                          onClick={(e) => handleDelete(entry.id, e)}
+                          className="text-[#9C8490] hover:text-red-400 p-1 rounded transition-colors"
+                          title="Delete entry"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mb-6">
@@ -248,12 +292,12 @@ export function UnderstandingCorner() {
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-sans uppercase tracking-widest text-[#C9A45C]">
-                    Proposed Shared Resolution
+                    Proposed Resolution / Agreement
                   </label>
                   <textarea
-                    rows={2}
+                    rows={3}
                     className="w-full bg-[#1A1015]/80 border border-white/10 rounded-xl p-3 text-[#FFFCF9] text-sm focus:outline-none focus:border-[#C9A45C] placeholder-[#9C8490]/50"
-                    placeholder="What agreement can we make moving forward?"
+                    placeholder="What small, loving step can resolve this?"
                     value={proposedResolution}
                     onChange={(e) => setProposedResolution(e.target.value)}
                   />
@@ -283,12 +327,23 @@ export function UnderstandingCorner() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="glass-card w-full max-w-2xl p-8 rounded-3xl border border-[#C9A45C]/30 bg-[#241B20]/95 max-h-[85vh] overflow-y-auto relative"
             >
-              <button
-                onClick={() => setSelectedEntry(null)}
-                className="absolute top-6 right-6 p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
-              >
-                <X size={20} />
-              </button>
+              <div className="absolute top-6 right-6 flex items-center gap-2">
+                {user && selectedEntry.author_id === user.id && (
+                  <button
+                    onClick={() => handleDelete(selectedEntry.id)}
+                    className="p-2 rounded-full bg-white/10 text-white hover:text-red-400 hover:bg-white/20 transition-colors"
+                    title="Delete Entry"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedEntry(null)}
+                  className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
 
               <h2
                 className="text-3xl font-serif text-[#FFFCF9] mb-4"

@@ -30,6 +30,11 @@ export interface Couple {
   anniversary_date: string | null;
   partner_name?: string | null;
   partner_birthday?: string | null;
+  invite_code?: string | null;
+  partner_1_timezone?: string | null;
+  partner_2_timezone?: string | null;
+  partner_1_status?: string | null;
+  partner_2_status?: string | null;
   onboarding_completed?: boolean;
   partner_1_id: string | null;
   partner_2_id: string | null;
@@ -120,7 +125,15 @@ export interface ChatMessage {
   content: string;
   message_type: MessageType;
   created_at: string;
+  read_at?: string | null;
   sender_name?: string;
+}
+
+export interface PartnerPresence {
+  userId: string;
+  displayName: string;
+  onlineAt: string;
+  status?: string;
 }
 
 export interface PlaylistSong {

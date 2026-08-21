@@ -12,7 +12,13 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
-import { fetchEvents, createEvent, updateEvent, deleteEvent } from '@/services/eventsService';
+import {
+  fetchEvents,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  subscribeToEvents,
+} from '@/services/eventsService';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/Button';
@@ -55,16 +61,42 @@ export function Events() {
 
   const [filterTab, setFilterTab] = useState<'all' | 'upcoming' | 'past'>('all');
 
-  const coupleId = couple?.id || 'demo-couple';
+  const coupleId = couple?.id;
 
   useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      const data = await fetchEvents(coupleId);
-      setEvents(data);
+    if (!coupleId) {
       setIsLoading(false);
+      return;
+    }
+
+    async function loadData() {
+      if (!coupleId) return;
+      setIsLoading(true);
+      try {
+        const data = await fetchEvents(coupleId);
+        setEvents(data);
+      } catch (err) {
+        console.error('[Events] Load data error:', err);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadData();
+
+    // Subscribe to realtime changes across partners
+    const channel = subscribeToEvents(coupleId, async () => {
+      if (!coupleId) return;
+      try {
+        const refreshed = await fetchEvents(coupleId);
+        setEvents(refreshed);
+      } catch (err) {
+        console.error('[Events] Realtime reload error:', err);
+      }
+    });
+
+    return () => {
+      if (channel) channel.unsubscribe();
+    };
   }, [coupleId]);
 
   // Compute countdowns & sort events by date
@@ -117,7 +149,7 @@ export function Events() {
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !user) return;
+    if (!title.trim() || !user || !coupleId) return;
 
     setIsSubmitting(true);
 
@@ -148,7 +180,7 @@ export function Events() {
 
   const handleUpdateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingEvent || !title.trim()) return;
+    if (!editingEvent || !title.trim() || !coupleId) return;
 
     setIsSubmitting(true);
 

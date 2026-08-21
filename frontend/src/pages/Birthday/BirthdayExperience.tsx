@@ -26,35 +26,43 @@ export function BirthdayExperience() {
 
   useEffect(() => {
     async function loadCoupleData() {
-      const coupleId = couple?.id || 'demo-couple';
+      const coupleId = couple?.id;
+      if (!coupleId) return;
       
-      // Load memories for photos
-      const mems = await fetchMemories(coupleId);
-      const extractedPhotos: { id: string; url: string; title: string; caption?: string; date?: string }[] = [];
-      mems.forEach((m) => {
-        if (m.photos && m.photos.length > 0) {
-          m.photos.forEach((p, idx) => {
-            extractedPhotos.push({
-              id: `${m.id}-${idx}`,
-              url: p.signed_url || p.storage_path || '',
-              title: m.title,
-              caption: p.caption || m.description || undefined,
-              date: new Date(m.memory_date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
+      try {
+        // Load memories for photos
+        const mems = await fetchMemories(coupleId);
+        const extractedPhotos: { id: string; url: string; title: string; caption?: string; date?: string }[] = [];
+        mems.forEach((m) => {
+          if (m.photos && m.photos.length > 0) {
+            m.photos.forEach((p, idx) => {
+              const validUrl = p.signed_url || (p.storage_path && (p.storage_path.startsWith('http') || p.storage_path.startsWith('data:')) ? p.storage_path : '');
+              if (validUrl) {
+                extractedPhotos.push({
+                  id: `${m.id}-${idx}`,
+                  url: validUrl,
+                  title: m.title,
+                  caption: p.caption || m.description || undefined,
+                  date: new Date(m.memory_date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
+                });
+              }
             });
+          }
+        });
+        setMemoryPhotos(extractedPhotos);
+
+        // Load top song from playlist
+        const songs = await fetchPlaylistSongs(coupleId);
+        if (songs.length > 0) {
+          setTopSong({
+            title: songs[0].title,
+            artist: songs[0].artist,
+            link: songs[0].audio_url || songs[0].link_url || undefined,
+            note: songs[0].note || undefined,
           });
         }
-      });
-      setMemoryPhotos(extractedPhotos);
-
-      // Load top song from playlist
-      const songs = await fetchPlaylistSongs(coupleId);
-      if (songs.length > 0) {
-        setTopSong({
-          title: songs[0].title,
-          artist: songs[0].artist,
-          link: songs[0].link_url || undefined,
-          note: songs[0].note || undefined,
-        });
+      } catch (err) {
+        console.error('[BirthdayExperience] loadCoupleData error:', err);
       }
     }
 

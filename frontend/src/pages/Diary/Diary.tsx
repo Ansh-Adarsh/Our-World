@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Heart, Lock, Sparkles, X, Calendar, Eye } from 'lucide-react';
+import { Plus, Trash2, Heart, Lock, Sparkles, X, Calendar, Eye, Edit2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchDiaryEntries, createDiaryEntry, deleteDiaryEntry } from '@/services/diaryService';
+import { useToastStore } from '@/stores/toastStore';
+import { fetchDiaryEntries, createDiaryEntry, updateDiaryEntry, deleteDiaryEntry } from '@/services/diaryService';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -13,10 +14,12 @@ const MOODS = ['💖', '🌅', '😊', '🍷', '🌟', '🎁', '🌙', '📖', '
 
 export function Diary() {
   const { user, couple } = useAuthStore();
+  const { showToast } = useToastStore();
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'ALL' | 'SHARED' | 'PRIVATE'>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<DiaryEntry | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<DiaryEntry | null>(null);
 
   // Form state
@@ -27,17 +30,26 @@ export function Diary() {
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const coupleId = couple?.id;
+
   useEffect(() => {
     async function loadData() {
-      if (!user) return;
+      if (!user || !coupleId) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
-      const coupleId = couple?.id || 'demo-couple';
-      const data = await fetchDiaryEntries(coupleId, user.id);
-      setEntries(data);
-      setIsLoading(false);
+      try {
+        const data = await fetchDiaryEntries(coupleId, user.id);
+        setEntries(data);
+      } catch (err) {
+        console.error('[Diary] Load data error:', err);
+      } finally {
+        setIsLoading(false);
+      }
     }
     loadData();
-  }, [couple?.id, user]);
+  }, [coupleId, user]);
 
   const filteredEntries = useMemo(() => {
     return entries.filter((e) => {
@@ -47,33 +59,63 @@ export function Diary() {
     });
   }, [entries, filter]);
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !content.trim() || !user) return;
-
-    setIsSubmitting(true);
-    const coupleId = couple?.id || 'demo-couple';
-
-    const newEntry = await createDiaryEntry({
-      coupleId,
-      userId: user.id,
-      title,
-      content,
-      mood,
-      visibility,
-      entryDate,
-    });
-
-    if (newEntry) {
-      setEntries((prev) => [newEntry, ...prev]);
-    }
-
+  const openCreateModal = () => {
+    setEditingEntry(null);
     setTitle('');
     setContent('');
     setMood('💖');
     setVisibility('SHARED');
-    setIsSubmitting(false);
-    setIsModalOpen(false);
+    setEntryDate(new Date().toISOString().split('T')[0]);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (entry: DiaryEntry, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingEntry(entry);
+    setTitle(entry.title);
+    setContent(entry.content);
+    setMood(entry.mood || '💖');
+    setVisibility(entry.visibility);
+    setEntryDate(entry.entry_date);
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !content.trim() || !user || !coupleId) return;
+
+    setIsSubmitting(true);
+    try {
+      if (editingEntry) {
+        const updated = await updateDiaryEntry(editingEntry.id, {
+          title,
+          content,
+          mood,
+          visibility,
+          entryDate,
+        });
+        setEntries((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+        if (selectedEntry?.id === updated.id) setSelectedEntry(updated);
+        showToast('Diary entry updated 💖', 'success');
+      } else {
+        const newEntry = await createDiaryEntry({
+          coupleId,
+          userId: user.id,
+          title,
+          content,
+          mood,
+          visibility,
+          entryDate,
+        });
+        setEntries((prev) => [newEntry, ...prev]);
+        showToast('Diary entry saved 📖', 'success');
+      }
+      setIsModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save entry', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -81,9 +123,14 @@ export function Diary() {
     const ok = confirm('Are you sure you want to delete this diary entry?');
     if (!ok) return;
 
-    await deleteDiaryEntry(id);
-    setEntries((prev) => prev.filter((item) => item.id !== id));
-    if (selectedEntry?.id === id) setSelectedEntry(null);
+    try {
+      await deleteDiaryEntry(id);
+      setEntries((prev) => prev.filter((item) => item.id !== id));
+      if (selectedEntry?.id === id) setSelectedEntry(null);
+      showToast('Diary entry deleted', 'info');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete entry', 'error');
+    }
   };
 
   return (
@@ -111,7 +158,7 @@ export function Diary() {
 
         <Button
           variant="gold"
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           className="flex items-center gap-2"
         >
           <Plus size={18} />
@@ -169,7 +216,7 @@ export function Diary() {
             <p className="text-sm text-[#9C8490] font-sans mb-6">
               Write a new page in your shared or private diary to capture your thoughts.
             </p>
-            <Button variant="gold" onClick={() => setIsModalOpen(true)}>
+            <Button variant="gold" onClick={openCreateModal}>
               Write Entry ✍️
             </Button>
           </div>
@@ -197,13 +244,22 @@ export function Diary() {
                       {entry.visibility}
                     </span>
                     {user && entry.author_id === user.id && (
-                      <button
-                        onClick={(e) => handleDelete(entry.id, e)}
-                        className="text-[#9C8490] hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        aria-label="Delete entry"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => openEditModal(entry, e)}
+                          className="text-[#9C8490] hover:text-[#C9A45C] p-1 transition-colors"
+                          aria-label="Edit entry"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => handleDelete(entry.id, e)}
+                          className="text-[#9C8490] hover:text-red-400 p-1 transition-colors"
+                          aria-label="Delete entry"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -241,7 +297,7 @@ export function Diary() {
         )}
       </div>
 
-      {/* CREATE ENTRY MODAL */}
+      {/* CREATE / EDIT ENTRY MODAL */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -254,7 +310,7 @@ export function Diary() {
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
                 <h2 className="text-2xl text-[#FFFCF9] font-serif flex items-center gap-2">
                   <Sparkles size={20} className="text-[#C9A45C]" />
-                  Write Notebook Entry
+                  {editingEntry ? 'Edit Diary Entry' : 'Write Notebook Entry'}
                 </h2>
                 <button
                   onClick={() => setIsModalOpen(false)}
@@ -264,39 +320,44 @@ export function Diary() {
                 </button>
               </div>
 
-              <form onSubmit={handleCreate} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <Input
-                  id="diary-title"
-                  label="Entry Title"
-                  placeholder="e.g. A morning reflection..."
+                  id="diary-entry-title"
+                  label="Title"
+                  placeholder="e.g., A special moment today..."
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
                 />
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input
-                    id="entry-date"
-                    type="date"
-                    label="Date"
-                    value={entryDate}
-                    onChange={(e) => setEntryDate(e.target.value)}
-                    required
-                  />
-
-                  {/* Mood Selector */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-sans uppercase tracking-widest text-[#C9A45C]">
-                      Mood Emoji
+                  <div>
+                    <label className="block text-xs font-sans uppercase tracking-widest text-[#C9A45C] mb-1.5">
+                      Entry Date
                     </label>
-                    <div className="flex items-center gap-1.5 overflow-x-auto p-2 bg-[#1A1015]/80 border border-white/10 rounded-xl">
+                    <input
+                      type="date"
+                      className="w-full bg-[#1A1015]/80 border border-white/10 rounded-xl p-3 text-[#FFFCF9] text-xs focus:outline-none focus:border-[#C9A45C] font-sans"
+                      value={entryDate}
+                      onChange={(e) => setEntryDate(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-sans uppercase tracking-widest text-[#C9A45C] mb-1.5">
+                      Mood
+                    </label>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
                       {MOODS.map((m) => (
                         <button
                           key={m}
                           type="button"
                           onClick={() => setMood(m)}
-                          className={`text-lg p-1 rounded-lg transition-transform ${
-                            mood === m ? 'scale-125 bg-white/20' : 'opacity-60 hover:opacity-100'
+                          className={`text-xl p-1.5 rounded-lg border transition-all cursor-pointer ${
+                            mood === m
+                              ? 'bg-[#C9A45C]/20 border-[#C9A45C] scale-110'
+                              : 'border-transparent hover:bg-white/5 opacity-70 hover:opacity-100'
                           }`}
                         >
                           {m}
@@ -322,7 +383,7 @@ export function Diary() {
                       }`}
                     >
                       <Heart size={14} className="text-[#E98DA3]" />
-                      <span>SHARED ❤️ (Both of us)</span>
+                      <span>SHARED ❤️</span>
                     </button>
 
                     <button
@@ -335,7 +396,7 @@ export function Diary() {
                       }`}
                     >
                       <Lock size={14} className="text-[#C9A45C]" />
-                      <span>PRIVATE 🔐 (Only me)</span>
+                      <span>PRIVATE 🔐</span>
                     </button>
                   </div>
                 </div>
@@ -360,7 +421,7 @@ export function Diary() {
                     Cancel
                   </Button>
                   <Button variant="gold" type="submit" isLoading={isSubmitting}>
-                    Save Entry 📖
+                    {editingEntry ? 'Update Entry 💖' : 'Save Entry 📖'}
                   </Button>
                 </div>
               </form>
@@ -379,12 +440,27 @@ export function Diary() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="glass-card w-full max-w-2xl p-8 rounded-3xl border border-[#C9A45C]/30 bg-[#241B20]/95 max-h-[85vh] overflow-y-auto relative"
             >
-              <button
-                onClick={() => setSelectedEntry(null)}
-                className="absolute top-6 right-6 p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
-              >
-                <X size={20} />
-              </button>
+              <div className="absolute top-6 right-6 flex items-center gap-2">
+                {user && selectedEntry.author_id === user.id && (
+                  <button
+                    onClick={() => {
+                      const toEdit = selectedEntry;
+                      setSelectedEntry(null);
+                      openEditModal(toEdit);
+                    }}
+                    className="p-2 rounded-full bg-white/10 text-white hover:bg-[#C9A45C]/20 hover:text-[#C9A45C] transition-colors"
+                    title="Edit Entry"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedEntry(null)}
+                  className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
 
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-3xl">{selectedEntry.mood}</span>

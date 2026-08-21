@@ -24,74 +24,94 @@ export async function fetchQuizzes(coupleId: string): Promise<Quiz[]> {
       .eq('couple_id', coupleId)
       .order('created_at', { ascending: false });
 
-    if (quizError || !quizData) {
-      console.warn('[QuizzesService] Fetch note:', quizError?.message);
-      return getDemoQuizzes(coupleId);
+    if (quizError) {
+      console.error('[QuizzesService] Fetch quizzes error:', quizError.message);
+      throw new Error(quizError.message);
     }
 
-    return (quizData as Quiz[]).length > 0 ? (quizData as Quiz[]) : getDemoQuizzes(coupleId);
+    if (!quizData) return [];
+
+    return quizData as Quiz[];
   } catch (err) {
-    console.error('[QuizzesService] Exception:', err);
-    return getDemoQuizzes(coupleId);
+    console.error('[QuizzesService] Exception in fetchQuizzes:', err);
+    throw err;
   }
 }
 
-export async function createQuiz(input: CreateQuizInput): Promise<Quiz | null> {
+export async function createQuiz(input: CreateQuizInput): Promise<Quiz> {
   const { coupleId, creatorId, title, description, questions } = input;
 
-  try {
-    const { data: quiz, error: quizError } = await supabase
-      .from('quizzes')
-      .insert({
-        couple_id: coupleId,
-        creator_id: creatorId,
-        title,
-        description: description || null,
-      })
-      .select()
-      .single();
-
-    if (quizError || !quiz) {
-      console.warn('[QuizzesService] Quiz insert note:', quizError?.message);
-      const localId = crypto.randomUUID();
-      return {
-        id: localId,
-        couple_id: coupleId,
-        creator_id: creatorId,
-        title,
-        description: description || null,
-        questions: questions.map((q, i) => ({
-          id: `${localId}-q${i}`,
-          quiz_id: localId,
-          question_text: q.questionText,
-          options: q.options,
-          correct_option_index: q.correctOptionIndex,
-        })),
-        created_at: new Date().toISOString(),
-      };
-    }
-
-    // Insert questions
-    const questionRows = questions.map((q) => ({
-      quiz_id: quiz.id,
-      question_text: q.questionText,
-      options: q.options,
-      correct_option_index: q.correctOptionIndex,
-    }));
-
-    const { data: createdQuestions } = await supabase
-      .from('quiz_questions')
-      .insert(questionRows)
-      .select();
-
+  if (isPlaceholder) {
+    const localId = crypto.randomUUID();
     return {
-      ...quiz,
-      questions: createdQuestions || [],
+      id: localId,
+      couple_id: coupleId,
+      creator_id: creatorId,
+      title,
+      description: description || null,
+      questions: questions.map((q, i) => ({
+        id: `${localId}-q${i}`,
+        quiz_id: localId,
+        question_text: q.questionText,
+        options: q.options,
+        correct_option_index: q.correctOptionIndex,
+      })),
+      created_at: new Date().toISOString(),
     };
-  } catch (err) {
-    console.error('[QuizzesService] Error creating quiz:', err);
-    return null;
   }
+
+  const { data: quiz, error: quizError } = await supabase
+    .from('quizzes')
+    .insert({
+      couple_id: coupleId,
+      creator_id: creatorId,
+      title,
+      description: description || null,
+    })
+    .select()
+    .single();
+
+  if (quizError || !quiz) {
+    console.error('[QuizzesService] Quiz insert error:', quizError?.message);
+    throw new Error(quizError?.message || 'Failed to create quiz');
+  }
+
+  // Insert questions
+  const questionRows = questions.map((q) => ({
+    quiz_id: quiz.id,
+    question_text: q.questionText,
+    options: q.options,
+    correct_option_index: q.correctOptionIndex,
+  }));
+
+  const { data: createdQuestions, error: questionsError } = await supabase
+    .from('quiz_questions')
+    .insert(questionRows)
+    .select();
+
+  if (questionsError) {
+    console.error('[QuizzesService] Quiz questions insert error:', questionsError.message);
+  }
+
+  return {
+    ...quiz,
+    questions: createdQuestions || [],
+  };
+}
+
+export async function deleteQuiz(quizId: string): Promise<boolean> {
+  if (isPlaceholder) return true;
+
+  const { error } = await supabase
+    .from('quizzes')
+    .delete()
+    .eq('id', quizId);
+
+  if (error) {
+    console.error('[QuizzesService] Delete quiz error:', error.message);
+    throw new Error(error.message);
+  }
+  return true;
 }
 
 export async function recordQuizAnswer(
@@ -101,6 +121,18 @@ export async function recordQuizAnswer(
   selectedOption: number,
   isCorrect: boolean
 ): Promise<QuizAnswer | null> {
+  if (isPlaceholder) {
+    return {
+      id: crypto.randomUUID(),
+      quiz_id: quizId,
+      question_id: questionId,
+      user_id: userId,
+      selected_option: selectedOption,
+      is_correct: isCorrect,
+      answered_at: new Date().toISOString(),
+    };
+  }
+
   try {
     const { data, error } = await supabase
       .from('quiz_answers')
@@ -141,20 +173,6 @@ function getDemoQuizzes(coupleId: string): Quiz[] {
           quiz_id: 'demo-quiz-1',
           question_text: 'Where did we meet for our first coffee date?',
           options: ['Little Flower Cafe', 'Starbucks Downtown', 'Beachside Bakery', 'Library Bistro'],
-          correct_option_index: 0,
-        },
-        {
-          id: 'q-2',
-          quiz_id: 'demo-quiz-1',
-          question_text: 'What flavor of tea/coffee did I order?',
-          options: ['Cinnamon Chai', 'Iced Vanilla Latte', 'Matcha Espresso', 'Hot Chocolate'],
-          correct_option_index: 1,
-        },
-        {
-          id: 'q-3',
-          quiz_id: 'demo-quiz-1',
-          question_text: 'Who said "I love you" first?',
-          options: ['Me! 🙋‍♀️', 'You! 🙋‍♂️', 'We said it together! ❤️', 'It was a mystery!'],
           correct_option_index: 0,
         },
       ],

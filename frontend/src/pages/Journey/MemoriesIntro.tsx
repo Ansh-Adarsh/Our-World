@@ -31,7 +31,7 @@ type Stage = 'intro' | 'gallery';
 export function MemoriesIntro() {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
-  const { couple, onboardingStatus, advanceJourney } = useAuthStore();
+  const { couple, onboardingStatus, advanceJourney, loadCouple } = useAuthStore();
 
   // Resume: the intro is already behind them once the status has moved on.
   const [stage, setStage] = useState<Stage>(
@@ -42,16 +42,25 @@ export function MemoriesIntro() {
   const [isFinishing, setIsFinishing] = useState(false);
   const [burst, setBurst] = useState(0);
 
-  const coupleId = couple?.id || 'demo-couple';
+  const coupleId = couple?.id;
 
   useEffect(() => {
     let active = true;
-    setIsLoading(true);
-    void fetchMemories(coupleId).then((rows) => {
-      if (!active) return;
-      setMemories(rows);
+    if (!coupleId) {
       setIsLoading(false);
-    });
+      return;
+    }
+    setIsLoading(true);
+    void fetchMemories(coupleId)
+      .then((rows) => {
+        if (!active) return;
+        setMemories(rows);
+        setIsLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setIsLoading(false);
+      });
     return () => {
       active = false;
     };
@@ -76,6 +85,7 @@ export function MemoriesIntro() {
     if (isFinishing) return;
     setIsFinishing(true);
     await advanceJourney('completed');
+    await loadCouple();
     navigate(JOURNEY_PATHS.dashboard, { replace: true });
   };
 

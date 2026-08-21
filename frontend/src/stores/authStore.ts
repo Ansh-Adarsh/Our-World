@@ -48,6 +48,8 @@ interface AuthStore {
   resetPassword: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   loadCouple: () => Promise<void>;
+  updateDisplayName: (displayName: string) => Promise<void>;
+  setCouple: (couple: Couple | null) => void;
   advanceJourney: (status: OnboardingStatus) => Promise<void>;
   setJourneyStep: (step: number) => Promise<void>;
   setHasJustAuthenticated: (status: boolean) => void;
@@ -212,16 +214,75 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         .select('couple_id, couples(*)')
         .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
+        console.error('[AuthStore] Error loading couple:', error.message);
+        return;
+      }
+
+      if (!data) {
         set({ couple: null });
         return;
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       set({ couple: (data as any).couples as Couple });
-    } catch {
-      set({ couple: null });
+    } catch (err) {
+      console.error('[AuthStore] Exception in loadCouple:', err);
     }
+  },
+
+  // ─── Update Display Name ───────────────────────────────────────────────────
+  updateDisplayName: async (displayName: string) => {
+    const trimmed = displayName.trim();
+    if (!trimmed) {
+      throw new Error('Display name cannot be empty');
+    }
+    if (trimmed.length > 50) {
+      throw new Error('Display name is too long (max 50 characters)');
+    }
+    const userId = get().user?.id;
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ display_name: trimmed, updated_at: new Date().toISOString() })
+        .eq('id', userId);
+
+      if (error) {
+        console.error('[AuthStore] Failed to update display name in database:', error.message);
+        throw new Error(error.message);
+      }
+
+      // Update in-memory user profile
+      const currentUser = get().user;
+      if (currentUser) {
+        const updatedProfile: Profile = currentUser.profile
+          ? { ...currentUser.profile, display_name: trimmed }
+          : {
+              id: userId,
+              display_name: trimmed,
+              avatar_url: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+        set({
+          user: {
+            ...currentUser,
+            profile: updatedProfile,
+          },
+        });
+      }
+    } catch (err) {
+      console.error('[AuthStore] updateDisplayName error:', err);
+      throw err;
+    }
+  },
+
+  setCouple: (couple: Couple | null) => {
+    set({ couple });
   },
 
   // ─── Journey: advance one stage ─────────────────────────────────────────────
