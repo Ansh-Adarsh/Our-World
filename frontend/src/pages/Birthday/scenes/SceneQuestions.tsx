@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
-import { Sparkles, Heart } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { Heart } from 'lucide-react';
 import { HeartBurst } from '@/components/journey/JourneyParticles';
 import { playUnlock, playPuff } from '@/utils/sound';
 import type { SurpriseQuestion } from '@/types';
@@ -32,6 +32,7 @@ export function SceneQuestions({ questions, partnerName, onNext }: SceneQuestion
 
   const currentQ = questions[currentIndex];
   const isEscape = currentQ.no_button_behavior === 'escape' || !currentQ.no_button_behavior;
+  const isLastQuestion = currentIndex === questions.length - 1;
 
   // Reset coordinates and state when changing question
   useEffect(() => {
@@ -146,7 +147,6 @@ export function SceneQuestions({ questions, partnerName, onNext }: SceneQuestion
   const handleNoClick = (e: React.MouseEvent) => {
     if (isEscape) {
       e.preventDefault();
-      // If user managed to click, dodge away
       triggerEscape(e.clientX, e.clientY);
     } else if (currentQ.no_button_behavior === 'grow_yes') {
       setYesScale((prev) => Math.min(prev + 0.2, 2.0));
@@ -172,7 +172,9 @@ export function SceneQuestions({ questions, partnerName, onNext }: SceneQuestion
   const handleYes = () => {
     playUnlock(true);
     setBurstCount((c) => c + 1);
-    setRevealText(currentQ.reveal_message || 'I knew it! You are my whole world ❤️');
+    setRevealText(currentQ.reveal_message || 'I knew it... ❤️');
+
+    const timeoutDuration = isLastQuestion ? 2400 : 1800;
 
     setTimeout(() => {
       setRevealText(null);
@@ -185,7 +187,7 @@ export function SceneQuestions({ questions, partnerName, onNext }: SceneQuestion
       } else {
         onNext();
       }
-    }, 1800);
+    }, timeoutDuration);
   };
 
   return (
@@ -198,113 +200,118 @@ export function SceneQuestions({ questions, partnerName, onNext }: SceneQuestion
 
       <HeartBurst trigger={burstCount} />
 
-      <motion.div
-        key={currentIndex}
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{
-          opacity: 1,
-          scale: 1,
-          y: 0,
-          x: isShaking ? [0, -10, 10, -10, 10, 0] : 0,
-        }}
-        exit={{ opacity: 0, scale: 0.95, y: -20 }}
-        transition={{ duration: 0.6 }}
-        className="relative z-10 w-full max-w-xl mx-auto space-y-6 glass-card p-8 sm:p-12 rounded-3xl border border-[#F4B8C9]/30 bg-[#22171E]/95 shadow-2xl"
-      >
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#E8C97A]/15 border border-[#E8C97A]/30 text-[#E8C97A] text-xs font-sans tracking-widest uppercase">
-          <Sparkles size={14} />
-          <span>Question {currentIndex + 1} of {questions.length}</span>
-        </div>
-
-        <h2
-          className="text-3xl sm:text-4xl font-light text-[#FFFCF9] leading-snug"
-          style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentIndex}
+          initial={{ opacity: 0, scale: 0.94, y: 16 }}
+          animate={{
+            opacity: 1,
+            scale: 1,
+            y: 0,
+            x: isShaking ? [0, -10, 10, -10, 10, 0] : 0,
+          }}
+          exit={{ opacity: 0, scale: 0.94, y: -16 }}
+          transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="relative z-10 w-full max-w-xl mx-auto space-y-6 glass-card p-8 sm:p-12 rounded-3xl border border-[#F4B8C9]/30 bg-[#22171E]/95 shadow-2xl"
         >
-          {currentQ.question_text || `A question for you, ${partnerName} ❤️`}
-        </h2>
-
-        {revealText ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="p-5 rounded-2xl bg-[#B83B5E]/25 border border-[#F4B8C9]/40 text-[#F4B8C9] text-base font-sans font-medium"
-          >
-            {revealText}
-          </motion.div>
-        ) : (
-          <div
-            ref={containerRef}
-            className="relative pt-8 min-h-[170px] flex flex-col items-center justify-center overflow-visible"
-          >
-            {/* Dynamic Animated Arrow Indicator that tracks the NO button position */}
-            {isEscape && (
-              <motion.div
-                animate={
-                  reduceMotion
-                    ? { x: noOffset.x, y: noOffset.y - 34 }
-                    : {
-                        x: noOffset.x,
-                        y: [noOffset.y - 38, noOffset.y - 30, noOffset.y - 38],
-                      }
-                }
-                transition={{
-                  x: { type: 'spring', stiffness: 350, damping: 25 },
-                  y: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
-                }}
-                className="absolute flex items-center justify-center gap-1.5 text-xs text-[#E8C97A] font-sans font-medium pointer-events-none z-30"
-              >
-                <span>{dodgeCount === 0 ? 'Try saying no... 😉' : 'Catch me if you can! 🏃'}</span>
-                <span className="text-base">↴</span>
-              </motion.div>
-            )}
-
-            {dodgeCount > 0 && dodgeCount < 5 && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-[11px] font-sans text-[#F4B8C9] italic mb-3 absolute top-0"
-              >
-                {dodgeCount === 1 && "Oops! It slipped away... 👀"}
-                {dodgeCount === 2 && "Nice try, but you can't say no! 😂"}
-                {dodgeCount === 3 && "Almost got it! Try again... 💨"}
-                {dodgeCount >= 4 && "There is only one true answer ❤️"}
-              </motion.div>
-            )}
-
-            {/* Controlled Interaction Area — YES is stationary, NO moves within safe bounds */}
-            <div className="flex items-center justify-center gap-6 relative z-10 w-full">
-              {/* YES Button (Stationary & Always Easy to Click) */}
-              <motion.button
-                type="button"
-                animate={{ scale: yesScale }}
-                transition={{ type: 'spring', stiffness: 350, damping: 22 }}
-                onClick={handleYes}
-                className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#B83B5E] to-[#E98DA3] text-white font-sans text-sm font-semibold shadow-lg hover:shadow-[#B83B5E]/50 transition-shadow cursor-pointer flex items-center gap-2 select-none"
-              >
-                <Heart size={16} className="fill-white" />
-                <span>{currentQ.yes_text || 'Yes ❤️'}</span>
-              </motion.button>
-
-              {/* NO Button (Playful Proximity Evasion) */}
-              <motion.button
-                ref={noButtonRef}
-                type="button"
-                animate={
-                  reduceMotion
-                    ? { x: noOffset.x, y: noOffset.y }
-                    : { x: noOffset.x, y: noOffset.y }
-                }
-                transition={{ type: 'spring', stiffness: 400, damping: 24 }}
-                onTouchStart={handleTouchStart}
-                onClick={handleNoClick}
-                className="px-6 py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-[#9C8490] hover:text-white font-sans text-sm font-medium transition-colors cursor-pointer select-none relative z-20"
-              >
-                <span>{currentQ.no_text || 'No 😂'}</span>
-              </motion.button>
-            </div>
+          {/* Elegant Storytelling Badge (Clean, No Technical step numbers) */}
+          <div className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#E8C97A]/15 border border-[#E8C97A]/30 text-[#E8C97A] text-xs font-sans tracking-widest uppercase">
+            <span>🌸</span>
+            <span>A Story of Us</span>
           </div>
-        )}
-      </motion.div>
+
+          <h2
+            className="text-2xl sm:text-4xl font-light text-[#FFFCF9] leading-relaxed whitespace-pre-line"
+            style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+          >
+            {currentQ.question_text || `A question for you, ${partnerName} ❤️`}
+          </h2>
+
+          {revealText ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              transition={{ duration: 0.4 }}
+              className="p-6 rounded-2xl bg-[#B83B5E]/25 border border-[#F4B8C9]/40 text-[#F4B8C9] text-base sm:text-lg font-sans font-medium whitespace-pre-line leading-relaxed shadow-lg"
+            >
+              {revealText}
+            </motion.div>
+          ) : (
+            <div
+              ref={containerRef}
+              className="relative pt-8 min-h-[170px] flex flex-col items-center justify-center overflow-visible"
+            >
+              {/* Dynamic Animated Arrow Indicator that tracks the NO button position */}
+              {isEscape && (
+                <motion.div
+                  animate={
+                    reduceMotion
+                      ? { x: noOffset.x, y: noOffset.y - 34 }
+                      : {
+                          x: noOffset.x,
+                          y: [noOffset.y - 38, noOffset.y - 30, noOffset.y - 38],
+                        }
+                  }
+                  transition={{
+                    x: { type: 'spring', stiffness: 350, damping: 25 },
+                    y: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
+                  }}
+                  className="absolute flex items-center justify-center gap-1.5 text-xs text-[#E8C97A] font-sans font-medium pointer-events-none z-30"
+                >
+                  <span>{dodgeCount === 0 ? 'Try saying no... 😉' : 'Catch me if you can! 🏃'}</span>
+                  <span className="text-base">↴</span>
+                </motion.div>
+              )}
+
+              {dodgeCount > 0 && dodgeCount < 5 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-[11px] font-sans text-[#F4B8C9] italic mb-3 absolute top-0"
+                >
+                  {dodgeCount === 1 && "Oops! It slipped away... 👀"}
+                  {dodgeCount === 2 && "Nice try, but you can't say no! 😂"}
+                  {dodgeCount === 3 && "Almost got it! Try again... 💨"}
+                  {dodgeCount >= 4 && "There is only one true answer ❤️"}
+                </motion.div>
+              )}
+
+              {/* Controlled Interaction Area — YES is stationary, NO moves within safe bounds */}
+              <div className="flex flex-wrap items-center justify-center gap-5 relative z-10 w-full">
+                {/* YES Button (Stationary & Always Easy to Click) */}
+                <motion.button
+                  type="button"
+                  animate={{ scale: yesScale }}
+                  transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+                  onClick={handleYes}
+                  className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-[#B83B5E] to-[#E98DA3] text-white font-sans text-sm font-semibold shadow-lg hover:shadow-[#B83B5E]/50 transition-shadow cursor-pointer flex items-center gap-2 select-none"
+                >
+                  <Heart size={16} className="fill-white" />
+                  <span>{currentQ.yes_text || 'YES ❤️'}</span>
+                </motion.button>
+
+                {/* NO Button (Playful Proximity Evasion) */}
+                <motion.button
+                  ref={noButtonRef}
+                  type="button"
+                  animate={
+                    reduceMotion
+                      ? { x: noOffset.x, y: noOffset.y }
+                      : { x: noOffset.x, y: noOffset.y }
+                  }
+                  transition={{ type: 'spring', stiffness: 400, damping: 24 }}
+                  onTouchStart={handleTouchStart}
+                  onClick={handleNoClick}
+                  className="px-6 py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 text-[#9C8490] hover:text-white font-sans text-sm font-medium transition-colors cursor-pointer select-none relative z-20"
+                >
+                  <span>{currentQ.no_text || 'NO 😏'}</span>
+                </motion.button>
+              </div>
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }

@@ -185,16 +185,20 @@ export async function updateDiaryEntry(
   }
 }
 
-export async function deleteDiaryEntry(entryId: string, coupleId?: string): Promise<boolean> {
-  if (coupleId) {
-    const existing = getLocalDiary(coupleId);
-    saveLocalDiary(
-      coupleId,
-      existing.filter((e) => e.id !== entryId)
-    );
+export async function deleteDiaryEntry(entryId: string, _coupleId?: string): Promise<boolean> {
+  // Remove from all local sanctuary storage keys
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('ourworld_diary_')) {
+      try {
+        const list: DiaryEntry[] = JSON.parse(localStorage.getItem(key) || '[]');
+        const filtered = list.filter((e) => e.id !== entryId);
+        localStorage.setItem(key, JSON.stringify(filtered));
+      } catch {}
+    }
   }
 
-  if (isPlaceholder || !coupleId) {
+  if (isPlaceholder) {
     return true;
   }
 

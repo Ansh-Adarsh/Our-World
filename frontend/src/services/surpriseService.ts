@@ -419,21 +419,29 @@ export async function unpublishSurprise(surpriseId: string, coupleId?: string): 
   return updateSurprise(surpriseId, { status: 'draft' }, coupleId);
 }
 
-export async function deleteSurprise(surpriseId: string, coupleId?: string): Promise<boolean> {
-  if (coupleId) {
-    const existing = getLocalSurprises(coupleId);
-    saveLocalSurprises(
-      coupleId,
-      existing.filter((s) => s.id !== surpriseId)
-    );
+export async function deleteSurprise(surpriseId: string, _coupleId?: string): Promise<boolean> {
+  // Remove from all local sanctuary storage keys
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('ourworld_surprises_')) {
+      try {
+        const list: Surprise[] = JSON.parse(localStorage.getItem(key) || '[]');
+        const filtered = list.filter((s) => s.id !== surpriseId);
+        localStorage.setItem(key, JSON.stringify(filtered));
+      } catch {}
+    }
   }
 
-  if (isPlaceholder || !coupleId) return true;
+  if (isPlaceholder) return true;
 
   try {
-    await supabase.from('surprises').delete().eq('id', surpriseId);
+    const { error } = await supabase.from('surprises').delete().eq('id', surpriseId);
+    if (error) {
+      console.warn('[SurpriseService] Remote delete notice:', error.message);
+    }
     return true;
-  } catch {
+  } catch (err) {
+    console.warn('[SurpriseService] deleteSurprise exception:', err);
     return true;
   }
 }

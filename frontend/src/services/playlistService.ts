@@ -206,21 +206,25 @@ export async function updatePlaylistSong(
 export async function deletePlaylistSong(
   songId: string,
   storagePath?: string | null,
-  coupleId?: string
+  _coupleId?: string
 ): Promise<boolean> {
-  if (coupleId) {
-    const existing = getLocalSongs(coupleId);
-    saveLocalSongs(
-      coupleId,
-      existing.filter((s) => s.id !== songId)
-    );
-  }
-
   if (storagePath) {
     void deleteAudioFile(storagePath);
   }
 
-  if (isPlaceholder || !coupleId) {
+  // Remove from all local sanctuary storage keys
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('ourworld_playlist_')) {
+      try {
+        const list: PlaylistSong[] = JSON.parse(localStorage.getItem(key) || '[]');
+        const filtered = list.filter((s) => s.id !== songId);
+        localStorage.setItem(key, JSON.stringify(filtered));
+      } catch {}
+    }
+  }
+
+  if (isPlaceholder) {
     return true;
   }
 

@@ -34,7 +34,7 @@ type Step =
   | 'music'
   | 'final';
 
-const DEFAULT_QUESTIONS: SurpriseQuestion[] = [
+export const DEFAULT_QUESTIONS: SurpriseQuestion[] = [
   {
     id: 'default-q-1',
     surprise_id: 'default',
@@ -44,29 +44,78 @@ const DEFAULT_QUESTIONS: SurpriseQuestion[] = [
     yes_text: 'YES ❤️',
     no_text: 'NO 😏',
     no_button_behavior: 'escape',
-    reveal_message: 'I knew it! You are my whole world ❤️',
+    reveal_message: 'I knew it... ❤️',
   },
   {
     id: 'default-q-2',
     surprise_id: 'default',
     question_order: 2,
     question_type: 'playful_choice',
-    question_text: 'Will you grow old with me? 💍',
-    yes_text: 'Always & Forever ✨',
-    no_text: 'Let me think... 😂',
+    question_text:
+      'If you had to choose one person to annoy for the rest of your life... would you choose me? 😌❤️',
+    yes_text: 'YES, obviously! ❤️',
+    no_text: 'NO 😏',
     no_button_behavior: 'escape',
-    reveal_message: 'Forever and a day by your side 🌸',
+    reveal_message: "Good choice, you're stuck with me forever 😂❤️",
   },
   {
     id: 'default-q-3',
     surprise_id: 'default',
     question_order: 3,
     question_type: 'playful_choice',
-    question_text: 'Ready for your birthday surprise? 🎁',
-    yes_text: 'Yes, absolutely! 🎉',
-    no_text: 'Maybe... 👀',
+    question_text: 'Do you still remember the little moments that made us... us? 🥹❤️',
+    yes_text: 'YES ❤️',
+    no_text: 'NO 😏',
     no_button_behavior: 'escape',
-    reveal_message: 'Hold on tight, the candles are waiting! 🎂',
+    reveal_message: 'Every single one is locked in my heart 🌸✨',
+  },
+  {
+    id: 'default-q-4',
+    surprise_id: 'default',
+    question_order: 4,
+    question_type: 'playful_choice',
+    question_text:
+      'If life gave you a thousand different paths... would you still choose the one that leads to me? 🥹❤️',
+    yes_text: 'YES, always ❤️',
+    no_text: 'NO 😏',
+    no_button_behavior: 'escape',
+    reveal_message: "Then we're going the right way... ❤️",
+  },
+  {
+    id: 'default-q-5',
+    surprise_id: 'default',
+    question_order: 5,
+    question_type: 'playful_choice',
+    question_text:
+      "Would you still choose me when we're old, grey, and still arguing about absolutely nothing? 👴🏻👵🏻❤️",
+    yes_text: 'YES, forever ❤️',
+    no_text: 'NO 😏',
+    no_button_behavior: 'escape',
+    reveal_message: "Good... because I'm not going anywhere. ❤️",
+  },
+  {
+    id: 'default-q-6',
+    surprise_id: 'default',
+    question_order: 6,
+    question_type: 'playful_choice',
+    question_text:
+      'One last serious question...\nWill you keep choosing me, again and again, for all the days ahead? 💍❤️',
+    yes_text: 'YES ❤️',
+    no_text: 'NO 😏',
+    no_button_behavior: 'escape',
+    reveal_message: "I was hoping you'd say that... ❤️",
+  },
+  {
+    id: 'default-q-7',
+    surprise_id: 'default',
+    question_order: 7,
+    question_type: 'playful_choice',
+    question_text:
+      'Okay... enough questions. 👀\n\nAre you ready to discover what I made for you? 🎁❤️',
+    yes_text: 'YESSS! ❤️',
+    no_text: 'NO 😏',
+    no_button_behavior: 'escape',
+    reveal_message: 'Then close your eyes for a second...\nBecause your surprise begins now. ❤️',
   },
 ];
 
@@ -82,9 +131,9 @@ export function BirthdayExperience() {
   const [memoryPhotos, setMemoryPhotos] = useState<
     { id: string; url: string; title: string; caption?: string; date?: string }[]
   >([]);
-  const [topSong, setTopSong] = useState<
-    { title: string; artist: string; link?: string; note?: string } | undefined
-  >(undefined);
+  const [playlistSongs, setPlaylistSongs] = useState<
+    { title: string; artist: string; link?: string; note?: string }[]
+  >([]);
 
   const partnerName = couple?.partner_name || 'My Love';
 
@@ -150,15 +199,16 @@ export function BirthdayExperience() {
         });
         setMemoryPhotos(extractedPhotos);
 
-        // 3. Load top song from playlist
+        // 3. Load all songs from playlist
         const songs = await fetchPlaylistSongs(coupleId);
         if (songs.length > 0) {
-          setTopSong({
-            title: songs[0].title,
-            artist: songs[0].artist,
-            link: songs[0].audio_url || songs[0].link_url || undefined,
-            note: songs[0].note || undefined,
-          });
+          const mappedSongs = songs.map((s) => ({
+            title: s.title,
+            artist: s.artist,
+            link: s.audio_url || s.link_url || undefined,
+            note: s.note || undefined,
+          }));
+          setPlaylistSongs(mappedSongs);
         }
       } catch (err) {
         console.error('[BirthdayExperience] loadData error:', err);
@@ -300,7 +350,7 @@ export function BirthdayExperience() {
           )}
 
           {currentStep === 'music' && (
-            <SceneMusic topSong={topSong} onNext={goNext} />
+            <SceneMusic songs={playlistSongs} onNext={goNext} />
           )}
 
           {currentStep === 'final' && (

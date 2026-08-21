@@ -185,16 +185,20 @@ export async function updateEvent(
   }
 }
 
-export async function deleteEvent(eventId: string, coupleId?: string): Promise<boolean> {
-  if (coupleId) {
-    const existing = getLocalEvents(coupleId);
-    saveLocalEvents(
-      coupleId,
-      existing.filter((e) => e.id !== eventId)
-    );
+export async function deleteEvent(eventId: string, _coupleId?: string): Promise<boolean> {
+  // Remove from all local sanctuary storage keys
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('ourworld_events_')) {
+      try {
+        const list: CoupleEvent[] = JSON.parse(localStorage.getItem(key) || '[]');
+        const filtered = list.filter((e) => e.id !== eventId);
+        localStorage.setItem(key, JSON.stringify(filtered));
+      } catch {}
+    }
   }
 
-  if (isPlaceholder || !coupleId) {
+  if (isPlaceholder) {
     return true;
   }
 

@@ -260,21 +260,26 @@ export async function updateMemory(
 export async function deleteMemory(
   memoryId: string,
   coupleIdOrPhotos?: string | string[],
-  coupleId?: string
+  _coupleId?: string
 ): Promise<boolean> {
-  // If photo paths passed
+  // If photo paths passed, clean storage
   if (Array.isArray(coupleIdOrPhotos)) {
     coupleIdOrPhotos.forEach((path) => {
       void deleteMemoryPhoto(path);
     });
   }
 
-  const targetCoupleId = typeof coupleIdOrPhotos === 'string' ? coupleIdOrPhotos : (coupleId || 'default-couple');
-  const existing = getLocalMemories(targetCoupleId);
-  saveLocalMemories(
-    targetCoupleId,
-    existing.filter((m) => m.id !== memoryId)
-  );
+  // Remove from all local sanctuary storage keys
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith('ourworld_memories_')) {
+      try {
+        const list: Memory[] = JSON.parse(localStorage.getItem(key) || '[]');
+        const filtered = list.filter((m) => m.id !== memoryId);
+        localStorage.setItem(key, JSON.stringify(filtered));
+      } catch {}
+    }
+  }
 
   if (isPlaceholder) {
     return true;
