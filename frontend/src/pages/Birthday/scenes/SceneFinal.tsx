@@ -1,14 +1,15 @@
 import { motion } from 'framer-motion';
 import { FlowerAccent } from '@/components/flowers/FlowerAccent';
-import { Sparkles, Heart, RotateCcw, Home } from 'lucide-react';
+import { Sparkles, Heart, RotateCcw, Home, Camera } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface SceneFinalProps {
   partnerName: string;
+  finalMessage?: string | null;
   onRestart: () => void;
 }
 
-export function SceneFinal({ partnerName, onRestart }: SceneFinalProps) {
+export function SceneFinal({ partnerName, finalMessage, onRestart }: SceneFinalProps) {
   const navigate = useNavigate();
 
   return (
@@ -56,35 +57,40 @@ export function SceneFinal({ partnerName, onRestart }: SceneFinalProps) {
       >
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#C9A45C]/15 border border-[#C9A45C]/30 text-[#C9A45C] text-xs font-sans tracking-widest uppercase mb-3">
           <Sparkles size={14} />
-          <span>OUR WORLD KEEPS GROWING</span>
+          <span>OUR WORLD • FOREVER & ALWAYS</span>
         </div>
       </motion.div>
 
-      {/* Central Flower & Message */}
+      {/* Central Emotional Climax */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 1, delay: 0.3 }}
-        className="relative z-10 my-auto flex flex-col items-center max-w-lg mx-auto"
+        className="relative z-10 my-auto flex flex-col items-center max-w-xl mx-auto"
       >
         <motion.div
           animate={{ scale: [1, 1.08, 1], rotate: [0, 5, 0, -5, 0] }}
           transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
           className="mb-6"
         >
-          <FlowerAccent variant="rose" size={100} color="#E98DA3" opacity={0.9} />
+          <FlowerAccent variant="rose" size={90} color="#E98DA3" opacity={0.9} />
         </motion.div>
+
+        <p className="text-xs font-sans tracking-widest uppercase text-[#E8C97A] mb-2">
+          And if I could choose all over again...
+        </p>
 
         <h1
           className="text-3xl sm:text-5xl font-light text-[#FFFCF9] leading-tight mb-4"
           style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
         >
-          Happy Birthday, <br />
-          <span className="text-[#C9A45C] font-semibold">{partnerName || 'My Love'}</span>
+          I'd still choose you, <br />
+          <span className="text-[#E8C97A] font-semibold">{partnerName || 'My Love'} ❤️</span>
         </h1>
 
-        <p className="text-sm sm:text-base text-[#9C8490] font-sans leading-relaxed max-w-md mx-auto">
-          Thank you for making every day extraordinary. Our world is richer, warmer, and infinitely more beautiful because of you.
+        <p className="text-sm sm:text-base text-[#9C8490] font-sans leading-relaxed max-w-md mx-auto italic">
+          "{finalMessage ||
+            'Thank you for making every day extraordinary. Our world is richer, warmer, and infinitely more beautiful because of you.'}"
         </p>
 
         <div className="flex items-center gap-1 mt-6 text-[#E98DA3]">
@@ -99,22 +105,30 @@ export function SceneFinal({ partnerName, onRestart }: SceneFinalProps) {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1, delay: 0.8 }}
-        className="relative z-10 pb-8 flex flex-wrap items-center justify-center gap-4"
+        className="relative z-10 pb-8 flex flex-wrap items-center justify-center gap-3"
       >
         <button
           onClick={onRestart}
-          className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-[#FFFCF9] text-xs font-sans tracking-wider uppercase hover:bg-white/20 transition-all flex items-center gap-2 cursor-pointer backdrop-blur-md"
+          className="px-5 py-2.5 rounded-full bg-white/10 border border-white/20 text-[#FFFCF9] text-xs font-sans tracking-wider uppercase hover:bg-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-md"
         >
           <RotateCcw size={14} />
-          <span>Replay Experience</span>
+          <span>Replay</span>
+        </button>
+
+        <button
+          onClick={() => navigate('/memories')}
+          className="px-5 py-2.5 rounded-full bg-white/10 border border-white/20 text-[#FFFCF9] text-xs font-sans tracking-wider uppercase hover:bg-white/20 transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-md"
+        >
+          <Camera size={14} />
+          <span>Explore Memories</span>
         </button>
 
         <button
           onClick={() => navigate('/home')}
-          className="px-6 py-3 rounded-full bg-gradient-to-r from-[#B83B5E] to-[#C9A45C] text-white text-xs font-sans tracking-wider uppercase font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 cursor-pointer shadow-lg"
+          className="px-6 py-2.5 rounded-full bg-gradient-to-r from-[#B83B5E] to-[#C9A45C] text-white text-xs font-sans tracking-wider uppercase font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5 cursor-pointer shadow-lg"
         >
           <Home size={14} />
-          <span>Return To Dashboard</span>
+          <span>Sanctuary Dashboard</span>
         </button>
       </motion.div>
     </div>

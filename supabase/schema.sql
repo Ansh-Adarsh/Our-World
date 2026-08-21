@@ -74,11 +74,7 @@ ALTER TABLE public.couple_members ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "couple_members_select" ON public.couple_members;
 CREATE POLICY "couple_members_select"
   ON public.couple_members FOR SELECT
-  USING (
-    couple_id IN (
-      SELECT couple_id FROM public.couple_members WHERE user_id = auth.uid()
-    )
-  );
+  USING (user_id = auth.uid());
 
 DROP POLICY IF EXISTS "couples_select_member" ON public.couples;
 CREATE POLICY "couples_select_member"
@@ -682,7 +678,127 @@ CREATE POLICY "understanding_entries_delete"
     )
   );
 
--- ─── 13. TRIGGERS & PROCEDURES ───────────────────────────────────────────────
+-- ─── 13. SURPRISES & SURPRISE QUESTIONS TABLES ──────────────────────────────
+CREATE TABLE IF NOT EXISTS public.surprises (
+  id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  couple_id        UUID        NOT NULL REFERENCES public.couples(id) ON DELETE CASCADE,
+  creator_id       UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  recipient_id     UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  occasion         TEXT        NOT NULL DEFAULT 'birthday' CHECK (occasion IN ('birthday', 'anniversary', 'first_meeting', 'proposal', 'valentine', 'achievement', 'apology', 'just_because', 'custom')),
+  title            TEXT        NOT NULL,
+  letter_message   TEXT,
+  cover_photo_url  TEXT,
+  music_url        TEXT,
+  status           TEXT        NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+  is_viewed        BOOLEAN     NOT NULL DEFAULT FALSE,
+  viewed_at        TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.surprises ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "surprises_select" ON public.surprises;
+CREATE POLICY "surprises_select"
+  ON public.surprises FOR SELECT
+  USING (
+    couple_id IN (
+      SELECT couple_id FROM public.couple_members WHERE user_id = auth.uid()
+    )
+    AND (
+      creator_id = auth.uid()
+      OR (recipient_id = auth.uid() AND status = 'published')
+    )
+  );
+
+DROP POLICY IF EXISTS "surprises_insert" ON public.surprises;
+CREATE POLICY "surprises_insert"
+  ON public.surprises FOR INSERT
+  WITH CHECK (
+    creator_id = auth.uid()
+    AND couple_id IN (
+      SELECT couple_id FROM public.couple_members WHERE user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "surprises_update" ON public.surprises;
+CREATE POLICY "surprises_update"
+  ON public.surprises FOR UPDATE
+  USING (
+    creator_id = auth.uid()
+    OR (recipient_id = auth.uid() AND status = 'published')
+  )
+  WITH CHECK (
+    creator_id = auth.uid()
+    OR (recipient_id = auth.uid() AND status = 'published')
+  );
+
+DROP POLICY IF EXISTS "surprises_delete" ON public.surprises;
+CREATE POLICY "surprises_delete"
+  ON public.surprises FOR DELETE
+  USING (creator_id = auth.uid());
+
+CREATE TABLE IF NOT EXISTS public.surprise_questions (
+  id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  surprise_id         UUID        NOT NULL REFERENCES public.surprises(id) ON DELETE CASCADE,
+  question_order      INT         NOT NULL DEFAULT 1,
+  question_type       TEXT        NOT NULL DEFAULT 'playful_choice',
+  question_text       TEXT        NOT NULL,
+  yes_text            TEXT        NOT NULL DEFAULT 'Yes ❤️',
+  no_text             TEXT        NOT NULL DEFAULT 'No 😂',
+  no_button_behavior  TEXT        NOT NULL DEFAULT 'escape' CHECK (no_button_behavior IN ('escape', 'grow_yes', 'shake', 'toast')),
+  hint                TEXT,
+  reveal_message      TEXT,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.surprise_questions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "surprise_questions_select" ON public.surprise_questions;
+CREATE POLICY "surprise_questions_select"
+  ON public.surprise_questions FOR SELECT
+  USING (
+    surprise_id IN (
+      SELECT id FROM public.surprises
+      WHERE couple_id IN (SELECT couple_id FROM public.couple_members WHERE user_id = auth.uid())
+      AND (creator_id = auth.uid() OR (recipient_id = auth.uid() AND status = 'published'))
+    )
+  );
+
+DROP POLICY IF EXISTS "surprise_questions_insert" ON public.surprise_questions;
+CREATE POLICY "surprise_questions_insert"
+  ON public.surprise_questions FOR INSERT
+  WITH CHECK (
+    surprise_id IN (
+      SELECT id FROM public.surprises WHERE creator_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "surprise_questions_update" ON public.surprise_questions;
+CREATE POLICY "surprise_questions_update"
+  ON public.surprise_questions FOR UPDATE
+  USING (
+    surprise_id IN (
+      SELECT id FROM public.surprises WHERE creator_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    surprise_id IN (
+      SELECT id FROM public.surprises WHERE creator_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "surprise_questions_delete" ON public.surprise_questions;
+CREATE POLICY "surprise_questions_delete"
+  ON public.surprise_questions FOR DELETE
+  USING (
+    surprise_id IN (
+      SELECT id FROM public.surprises WHERE creator_id = auth.uid()
+    )
+  );
+
+-- ─── 14. TRIGGERS & PROCEDURES ───────────────────────────────────────────────
 
 -- Updated at trigger function
 CREATE OR REPLACE FUNCTION public.set_updated_at()

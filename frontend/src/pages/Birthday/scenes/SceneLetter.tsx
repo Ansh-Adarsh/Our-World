@@ -5,12 +5,15 @@ import { generateAIContent } from '@/services/aiService';
 
 interface SceneLetterProps {
   partnerName: string;
+  customMessage?: string | null;
   onNext: () => void;
 }
 
-export function SceneLetter({ partnerName, onNext }: SceneLetterProps) {
+export function SceneLetter({ partnerName, customMessage, onNext }: SceneLetterProps) {
   const [letterText, setLetterText] = useState<string>(
-    `To ${partnerName || 'My Love'},\n\nOn this special day, I want to take a moment to tell you just how deeply grateful I am for your existence. Every quiet morning, shared smile, and midnight conversation with you adds a soft, golden brilliance to my life.\n\nYou make our little world feel whole, safe, and endlessly beautiful. Here is to celebrating your light today and walking hand in hand through all the chapters yet to come.\n\nWith all my love, always.`
+    () =>
+      customMessage ||
+      `To ${partnerName || 'My Love'},\n\nOn this special day, I want to take a moment to tell you just how deeply grateful I am for your existence. Every quiet morning, shared smile, and midnight conversation with you adds a soft, golden brilliance to my life.\n\nYou make our little world feel whole, safe, and endlessly beautiful. Here is to celebrating your light today and walking hand in hand through all the chapters yet to come.\n\nWith all my love, always.`
   );
   const [isAIGenerating, setIsAIGenerating] = useState(false);
 

@@ -111,6 +111,9 @@ export async function getSignedUrl(
   }
 }
 
+const isValidUuid = (str: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+
 /**
  * Uploads a memory photo to the private bucket under `{couple_id}/{memory_id}/{filename}`
  */
@@ -124,7 +127,7 @@ export async function uploadMemoryPhoto(
     throw new Error(validation.error);
   }
 
-  if (isPlaceholder) {
+  if (isPlaceholder || !isValidUuid(coupleId)) {
     const dataUrl = await fileToDataUrl(file);
     return { path: `local/${file.name}`, signedUrl: dataUrl };
   }
@@ -186,7 +189,7 @@ export async function uploadAudioFile(
     throw new Error(validation.error);
   }
 
-  if (isPlaceholder) {
+  if (isPlaceholder || !isValidUuid(coupleId)) {
     const dataUrl = await fileToDataUrl(file);
     return { path: `local/${file.name}`, signedUrl: dataUrl };
   }

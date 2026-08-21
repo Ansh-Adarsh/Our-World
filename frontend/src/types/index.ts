@@ -208,6 +208,62 @@ export interface UnderstandingEntry {
 
 // ─── Auth Types ───────────────────────────────────────────────────────────────
 
+export interface AIActionResponse {
+  type: string;
+  draft: string;
+  status: 'PROPOSED' | 'APPROVED' | 'REJECTED';
+}
+
+// ─── Surprise System Types ───────────────────────────────────────────────────
+
+export type SurpriseOccasion =
+  | 'birthday'
+  | 'anniversary'
+  | 'first_meeting'
+  | 'proposal'
+  | 'valentine'
+  | 'achievement'
+  | 'apology'
+  | 'just_because'
+  | 'custom';
+
+export type SurpriseStatus = 'draft' | 'published';
+
+export type NoButtonBehavior = 'escape' | 'grow_yes' | 'shake' | 'toast';
+
+export interface SurpriseQuestion {
+  id: string;
+  surprise_id: string;
+  question_order: number;
+  question_type: string;
+  question_text: string;
+  yes_text: string;
+  no_text: string;
+  no_button_behavior: NoButtonBehavior;
+  hint?: string | null;
+  reveal_message?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Surprise {
+  id: string;
+  couple_id: string;
+  creator_id: string;
+  recipient_id: string;
+  occasion: SurpriseOccasion;
+  title: string;
+  letter_message?: string | null;
+  cover_photo_url?: string | null;
+  music_url?: string | null;
+  status: SurpriseStatus;
+  is_viewed?: boolean;
+  viewed_at?: string | null;
+  questions?: SurpriseQuestion[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuthUser {
   id: string;
   email: string | undefined;

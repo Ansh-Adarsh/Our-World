@@ -135,14 +135,14 @@ export function Home() {
   };
 
   const tiles = [
-    { id: 'memories-tile',  emoji: '📸', label: 'Memories',     route: '/memories',      desc: 'Shared gallery & memory timeline' },
-    { id: 'diary-tile',     emoji: '📔', label: 'Diary',        route: '/diary',         desc: 'Private & shared notebook entries' },
-    { id: 'messages-tile',  emoji: '💌', label: 'Messages',     route: '/messages',      desc: 'Intimate realtime chat', badge: unreadCount > 0 ? unreadCount : undefined },
-    { id: 'playlist-tile',  emoji: '🎵', label: 'Playlist',     route: '/playlist',      desc: 'Our shared music soundtrack' },
-    { id: 'events-tile',    emoji: '🗓️', label: 'Events',       route: '/events',        desc: 'Anniversaries & countdowns' },
-    { id: 'gifts-tile',     emoji: '🎁', label: 'Gifts',        route: '/gifts',         desc: 'Wishlist & surprise gifts' },
-    { id: 'quizzes-tile',   emoji: '🎮', label: 'Quizzes',      route: '/quizzes',       desc: 'Trivia: How well do you know us?' },
-    { id: 'understanding',  emoji: '🕊️', label: 'Understanding',route: '/understanding', desc: 'Calm space for resolving disagreements' },
+    { id: 'memories-tile',  emoji: '📸', label: 'Memories',      route: '/memories' },
+    { id: 'diary-tile',     emoji: '📔', label: 'Diary',         route: '/diary' },
+    { id: 'messages-tile',  emoji: '💌', label: 'Messages',      route: '/messages', badge: unreadCount > 0 ? unreadCount : undefined },
+    { id: 'playlist-tile',  emoji: '🎵', label: 'Playlist',      route: '/playlist' },
+    { id: 'events-tile',    emoji: '🗓️', label: 'Events',        route: '/events' },
+    { id: 'gifts-tile',     emoji: '🎁', label: 'Gifts',         route: '/gifts' },
+    { id: 'quizzes-tile',   emoji: '🎮', label: 'Quizzes',       route: '/quizzes' },
+    { id: 'understanding',  emoji: '🕊️', label: 'Understanding', route: '/understanding' },
   ];
 
   return (
@@ -336,10 +336,10 @@ export function Home() {
                 />
               </div>
               <button
-                onClick={() => navigate('/onboarding')}
-                className="text-[#9C8490] hover:text-[#FFFCF9] text-xs font-sans mt-4 text-left underline transition-colors cursor-pointer"
+                onClick={() => navigate('/surprises')}
+                className="text-[#F4B8C9] hover:text-[#FFFCF9] text-xs font-sans mt-4 text-left underline transition-colors cursor-pointer flex items-center gap-1.5"
               >
-                {daysToBirthday !== null ? 'A special cinematic surprise awaits' : 'Set partner birthday in onboarding'}
+                <span>{daysToBirthday !== null ? 'A special cinematic surprise awaits ✨' : 'Create a custom surprise for your partner'}</span>
               </button>
             </Card>
           </motion.div>
@@ -418,10 +418,9 @@ export function Home() {
             >
               Our World Spaces
             </h2>
-            <span className="text-xs font-sans text-[#9C8490]">Tap any space to open</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {tiles.map((tile, idx) => (
               <motion.div
                 key={tile.id}
@@ -429,38 +428,30 @@ export function Home() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35, delay: idx * 0.04 }}
-                whileHover={{ y: -3, scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
+                whileHover={{ y: -3, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
                 <Card
                   variant="dark"
                   onClick={() => navigate(tile.route)}
-                  className="p-5 cursor-pointer hover:border-[#F4B8C9]/40 transition-all group flex flex-col justify-between h-full bg-gradient-to-b from-[#2E2028]/80 to-[#241B20]/95 border border-white/10 relative"
+                  className="p-5 cursor-pointer hover:border-[#F4B8C9]/40 transition-all group flex flex-col justify-between h-full bg-gradient-to-b from-[#2E2028]/80 to-[#241B20]/95 border border-white/10 relative rounded-3xl"
                 >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-3xl p-2 rounded-2xl bg-white/5 border border-white/5 group-hover:scale-110 transition-transform">
-                        {tile.emoji}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-3xl p-2 rounded-2xl bg-white/5 border border-white/5 group-hover:scale-110 transition-transform">
+                      {tile.emoji}
+                    </span>
+                    {tile.badge && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#B83B5E] text-white text-[11px] font-sans font-bold shadow-lg shadow-[#B83B5E]/50 animate-pulse">
+                        {tile.badge}
                       </span>
-                      {tile.badge && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-[#B83B5E] text-white text-[11px] font-sans font-bold shadow-lg shadow-[#B83B5E]/50 animate-pulse">
-                          {tile.badge}
-                        </span>
-                      )}
-                    </div>
-                    <h3
-                      className="text-xl font-light text-[#FFFCF9] group-hover:text-[#F4B8C9] transition-colors mb-1"
-                      style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
-                    >
-                      {tile.label}
-                    </h3>
-                    <p className="text-xs text-[#9C8490] font-sans leading-relaxed">
-                      {tile.desc}
-                    </p>
+                    )}
                   </div>
-                  <span className="text-[11px] font-sans text-[#F4B8C9]/60 group-hover:text-[#F4B8C9] transition-colors mt-4 block">
-                    Enter space →
-                  </span>
+                  <h3
+                    className="text-xl sm:text-2xl font-light text-[#FFFCF9] group-hover:text-[#F4B8C9] transition-colors"
+                    style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
+                  >
+                    {tile.label}
+                  </h3>
                 </Card>
               </motion.div>
             ))}
