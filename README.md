@@ -4,7 +4,7 @@
 
 ---
 
-## Status: Project Complete — Phase 5 of 5 ✅
+## Status: Project Complete — Phase 5 of 5 
 
 Our World is a privacy-first, full-stack web application for couples — a digital love journal that holds memories, diaries, realtime chat, shared events, music soundtracks, gift wishlists, playful trivia quizzes, an understanding corner for working through disagreements, and a 7-chapter cinematic birthday experience.
 
